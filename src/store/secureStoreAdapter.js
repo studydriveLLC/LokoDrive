@@ -1,26 +1,28 @@
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const saveToken = async (key, value) => {
-  try {
-    await SecureStore.setItemAsync(key, value);
-  } catch (error) {
-    console.error('Erreur lors de la sauvegarde dans SecureStore:', error);
+const SecureStorageAdapter = {
+  setItem: async (key, value) => {
+    try {
+      if (Platform.OS === 'web') await AsyncStorage.setItem(key, value);
+      else await SecureStore.setItemAsync(key, value);
+    } catch (e) { console.error('Erreur setItem', e); }
+  },
+  getItem: async (key) => {
+    try {
+      if (Platform.OS === 'web') return await AsyncStorage.getItem(key);
+      else return await SecureStore.getItemAsync(key);
+    } catch (e) { return null; }
+  },
+  removeItem: async (key) => {
+    try {
+      if (Platform.OS === 'web') await AsyncStorage.removeItem(key);
+      else await SecureStore.deleteItemAsync(key);
+    } catch (e) { console.error('Erreur removeItem', e); }
   }
 };
 
-export const getToken = async (key) => {
-  try {
-    return await SecureStore.getItemAsync(key);
-  } catch (error) {
-    console.error('Erreur lors de la recuperation dans SecureStore:', error);
-    return null;
-  }
-};
-
-export const deleteToken = async (key) => {
-  try {
-    await SecureStore.deleteItemAsync(key);
-  } catch (error) {
-    console.error('Erreur lors de la suppression dans SecureStore:', error);
-  }
-};
+// Export pour l'ancienne syntaxe ET export default pour ton apiSlice YELY
+export const { setItem: saveToken, getItem: getToken, removeItem: deleteToken } = SecureStorageAdapter;
+export default SecureStorageAdapter;
