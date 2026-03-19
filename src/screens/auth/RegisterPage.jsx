@@ -27,10 +27,8 @@ export default function RegisterPage({ navigation }) {
   const insets = useSafeAreaInsets();
   const [register, { isLoading }] = useRegisterMutation();
 
-  // Modification ici : Côte d'Ivoire par défaut
   const [countryCode, setCountryCode] = useState('CI');
   const [callingCode, setCallingCode] = useState('225');
-  
   const [isPseudoEdited, setIsPseudoEdited] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
 
@@ -117,6 +115,9 @@ export default function RegisterPage({ navigation }) {
       await saveToken('accessToken', accessToken);
       dispatch(setCredentials({ user, token: accessToken }));
     } catch (error) {
+      // 🔥 MOUCHARD FRONTEND 🔥
+      console.error("🚨 ERREUR API (FRONTEND) :", JSON.stringify(error, null, 2));
+      
       const errorMessage = error?.data?.errors?.[0]?.message || error?.data?.message || 'Erreur d\'inscription.';
       dispatch(showErrorToast({ message: errorMessage }));
     }
