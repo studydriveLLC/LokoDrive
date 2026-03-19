@@ -23,7 +23,7 @@
       },
       "package": "com.studydrive.app",
       "userInterfaceStyle": "automatic",
-      "softwareKeyboardLayoutMode": "adjustResize"
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/favicon.png"
