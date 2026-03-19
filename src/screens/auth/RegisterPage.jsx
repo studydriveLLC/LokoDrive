@@ -7,14 +7,12 @@ import {
   KeyboardAvoidingView, 
   Platform,
   ScrollView,
-  Keyboard,
-  TouchableWithoutFeedback,
   Animated
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CountryPicker from 'react-native-country-picker-modal';
-import { Check } from 'lucide-react-native'; // Ajout de l'icône de validation
+import { Check } from 'lucide-react-native';
 import { useRegisterMutation } from '../../store/api/authApiSlice';
 import { setCredentials } from '../../store/slices/authSlice';
 import { showErrorToast } from '../../store/slices/uiSlice';
@@ -29,27 +27,23 @@ export default function RegisterPage({ navigation }) {
   const insets = useSafeAreaInsets();
   const [register, { isLoading }] = useRegisterMutation();
 
-  const [countryCode, setCountryCode] = useState('FR');
-  const [callingCode, setCallingCode] = useState('33');
+  // Modification ici : Côte d'Ivoire par défaut
+  const [countryCode, setCountryCode] = useState('CI');
+  const [callingCode, setCallingCode] = useState('225');
+  
   const [isPseudoEdited, setIsPseudoEdited] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', pseudo: '', phone: '', email: '', university: '', password: '',
   });
 
-  // États pour la validation du mot de passe
   const [passwordCriteria, setPasswordCriteria] = useState({
-    length: false,
-    uppercase: false,
-    lowercase: false,
-    number: false,
-    special: false,
+    length: false, uppercase: false, lowercase: false, number: false, special: false,
   });
 
-  // Animation de la jauge
   const strengthAnim = useRef(new Animated.Value(0)).current;
 
-  // Analyse en temps réel de la robustesse du mot de passe
   useEffect(() => {
     const pwd = formData.password;
     const criteria = {
@@ -67,11 +61,10 @@ export default function RegisterPage({ navigation }) {
     Animated.timing(strengthAnim, {
       toValue: score,
       duration: 300,
-      useNativeDriver: false, // La largeur (width) ne supporte pas le native driver
+      useNativeDriver: false,
     }).start();
   }, [formData.password, strengthAnim]);
 
-  // Génération automatique du pseudo
   useEffect(() => {
     if (!isPseudoEdited) {
       const first = formData.firstName.trim().toLowerCase();
@@ -98,7 +91,6 @@ export default function RegisterPage({ navigation }) {
   const handleRegister = async () => {
     const { firstName, lastName, pseudo, phone, email, university, password } = formData;
     
-    // Vérification stricte : tous les champs ET mot de passe 100% robuste
     if (!firstName.trim() || !lastName.trim() || !pseudo.trim() || 
         !phone.trim() || !email.trim() || !university.trim() || !password.trim()) {
       dispatch(showErrorToast({ message: 'Veuillez remplir tous les champs.' }));
@@ -108,6 +100,11 @@ export default function RegisterPage({ navigation }) {
     const isPasswordValid = Object.values(passwordCriteria).every(Boolean);
     if (!isPasswordValid) {
       dispatch(showErrorToast({ message: 'Votre mot de passe n\'est pas assez robuste.' }));
+      return;
+    }
+
+    if (!acceptTerms) {
+      dispatch(showErrorToast({ message: 'Vous devez accepter les conditions d\'utilisation.' }));
       return;
     }
 
@@ -125,13 +122,11 @@ export default function RegisterPage({ navigation }) {
     }
   };
 
-  // Interpolation de la couleur de la jauge (Rouge -> Orange -> Vert)
   const gaugeColor = strengthAnim.interpolate({
     inputRange: [0, 40, 80, 100],
     outputRange: [theme.colors.error, theme.colors.error, theme.colors.warning, theme.colors.success]
   });
 
-  // Composant modulaire pour un élément de la checklist
   const CriterionCheck = ({ label, isValid }) => (
     <View style={styles.criterionRow}>
       <View style={[
@@ -140,16 +135,13 @@ export default function RegisterPage({ navigation }) {
       ]}>
         {isValid && <Check size={12} color={theme.colors.surface} />}
       </View>
-      <Text style={[
-        styles.criterionText, 
-        { color: isValid ? theme.colors.text : theme.colors.textMuted }
-      ]}>
+      <Text style={[styles.criterionText, { color: isValid ? theme.colors.text : theme.colors.textMuted }]}>
         {label}
       </Text>
     </View>
   );
 
-  const renderContent = () => (
+  return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <KeyboardAvoidingView 
         style={styles.keyboardView}
@@ -207,13 +199,12 @@ export default function RegisterPage({ navigation }) {
 
           <AnimatedInput label="Université" value={formData.university} onChangeText={(val) => handleChange('university', val)} />
           
-          {/* Section Mot de Passe avec Intelligence visuelle */}
           <AnimatedInput 
             label="Mot de passe" 
             value={formData.password} 
             onChangeText={(val) => handleChange('password', val)} 
             isPassword={true} 
-            style={{ marginBottom: 8 }} // Rapproche l'input de sa jauge
+            style={{ marginBottom: 8 }} 
           />
 
           {formData.password.length > 0 && (
@@ -241,6 +232,25 @@ export default function RegisterPage({ navigation }) {
             </View>
           )}
 
+          <TouchableOpacity 
+            style={styles.termsContainer} 
+            onPress={() => setAcceptTerms(!acceptTerms)}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.checkbox, 
+              { 
+                borderColor: acceptTerms ? theme.colors.primary : theme.colors.border,
+                backgroundColor: acceptTerms ? theme.colors.primary : 'transparent'
+              }
+            ]}>
+              {acceptTerms && <Check size={14} color={theme.colors.surface} />}
+            </View>
+            <Text style={[styles.termsText, { color: theme.colors.textMuted }]}>
+              En vous inscrivant vous êtes d'accord avec nos <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Conditions d'utilisation</Text>
+            </Text>
+          </TouchableOpacity>
+
           <View style={styles.actionContainer}>
             <AnimatedButton title="S'inscrire" onPress={handleRegister} isLoading={isLoading} />
           </View>
@@ -251,14 +261,6 @@ export default function RegisterPage({ navigation }) {
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
-  );
-
-  if (Platform.OS === 'web') return renderContent();
-
-  return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      {renderContent()}
-    </TouchableWithoutFeedback>
   );
 }
 
@@ -277,47 +279,19 @@ const styles = StyleSheet.create({
   },
   halfInputContainer: { flex: 1 },
   
-  // Styles pour l'intelligence du mot de passe
-  passwordIntelligenceBox: {
-    marginBottom: 24,
-    paddingHorizontal: 4,
-  },
-  gaugeTrack: {
-    height: 6,
-    borderRadius: 3,
-    width: '100%',
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  gaugeFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  criteriaGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  criterionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '48%', // Affiche 2 colonnes
-    marginBottom: 4,
-  },
-  iconCircle: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  criterionText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
+  passwordIntelligenceBox: { marginBottom: 24, paddingHorizontal: 4 },
+  gaugeTrack: { height: 6, borderRadius: 3, width: '100%', overflow: 'hidden', marginBottom: 12 },
+  gaugeFill: { height: '100%', borderRadius: 3 },
+  criteriaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  criterionRow: { flexDirection: 'row', alignItems: 'center', width: '48%', marginBottom: 4 },
+  iconCircle: { width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
+  criterionText: { fontSize: 12, fontWeight: '500' },
 
-  actionContainer: { marginTop: 12 },
+  termsContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, marginTop: 8, paddingHorizontal: 4 },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  termsText: { flex: 1, fontSize: 13, lineHeight: 18 },
+
+  actionContainer: { marginTop: 4 },
   linkButton: { marginTop: 32, alignItems: 'center', padding: 12 },
   linkText: { fontSize: 16, fontWeight: '600' }
 });
