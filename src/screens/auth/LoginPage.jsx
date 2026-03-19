@@ -2,21 +2,21 @@ import React, { useState } from 'react';
 import { 
   View, 
   Text, 
-  TextInput, 
   TouchableOpacity, 
   StyleSheet, 
   KeyboardAvoidingView, 
-  Platform,
-  ActivityIndicator,
-  Alert
+  Platform
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useLoginMutation } from '../../store/api/authApiSlice';
 import { setCredentials } from '../../store/slices/authSlice';
+import { showErrorToast } from '../../store/slices/uiSlice';
 import { saveToken } from '../../store/secureStoreAdapter';
-import { theme } from '../../theme/theme'; // Import du theme unifie
+import { theme } from '../../theme/theme';
+import AnimatedInput from '../../components/ui/AnimatedInput';
+import AnimatedButton from '../../components/ui/AnimatedButton';
 
-export default function LoginPage() {
+export default function LoginPage({ navigation }) {
   const dispatch = useDispatch();
   const [login, { isLoading }] = useLoginMutation();
 
@@ -25,7 +25,7 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     if (!identifier.trim() || !password.trim()) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs.');
+      dispatch(showErrorToast({ message: 'Veuillez remplir tous les champs.' }));
       return;
     }
 
@@ -38,10 +38,9 @@ export default function LoginPage() {
 
     } catch (error) {
       console.error('Erreur de connexion:', error);
-      Alert.alert(
-        'Erreur', 
-        error?.data?.message || 'Identifiants incorrects ou erreur serveur.'
-      );
+      dispatch(showErrorToast({ 
+        message: error?.data?.message || 'Identifiants incorrects ou erreur serveur.' 
+      }));
     }
   };
 
@@ -53,44 +52,37 @@ export default function LoginPage() {
       <View style={styles.formContainer}>
         <View style={styles.header}>
           <Text style={styles.title}>StudyDrive</Text>
-          <Text style={styles.subtitle}>Connectez-vous pour acceder au campus.</Text>
+          <Text style={styles.subtitle}>Connectez-vous pour accéder au campus.</Text>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Identifiant (Email, Pseudo ou Tel)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="etudiant@univ.edu"
-            placeholderTextColor={theme.colors.textDisabled}
-            value={identifier}
-            onChangeText={setIdentifier}
-            autoCapitalize="none"
-          />
-        </View>
+        <AnimatedInput
+          label="Identifiant (Email, Pseudo, Tel)"
+          value={identifier}
+          onChangeText={setIdentifier}
+          autoCapitalize="none"
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Mot de passe</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="********"
-            placeholderTextColor={theme.colors.textDisabled}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={true}
+        <AnimatedInput
+          label="Mot de passe"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={true}
+        />
+
+        <View style={styles.actionContainer}>
+          <AnimatedButton
+            title="Se connecter"
+            onPress={handleLogin}
+            isLoading={isLoading}
           />
         </View>
 
         <TouchableOpacity 
-          style={styles.primaryButton} 
-          onPress={handleLogin}
-          disabled={isLoading}
-          activeOpacity={0.8}
+          style={styles.linkButton} 
+          onPress={() => navigation.navigate('Register')}
+          activeOpacity={0.6}
         >
-          {isLoading ? (
-            <ActivityIndicator color={theme.colors.surface} />
-          ) : (
-            <Text style={styles.primaryButtonText}>Se connecter</Text>
-          )}
+          <Text style={styles.linkText}>Pas encore de compte ? S'inscrire</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -105,10 +97,10 @@ const styles = StyleSheet.create({
   formContainer: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.l,
+    paddingHorizontal: theme.spacing.xl,
   },
   header: {
-    marginBottom: theme.spacing.xxl,
+    marginBottom: theme.spacing.xxxl,
     alignItems: 'center',
   },
   title: {
@@ -116,44 +108,24 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.primary,
     marginBottom: theme.spacing.xs,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: theme.typography.sizes.body,
     color: theme.colors.textMuted,
     textAlign: 'center',
   },
-  inputGroup: {
-    marginBottom: theme.spacing.l,
+  actionContainer: {
+    marginTop: theme.spacing.l,
   },
-  label: {
-    fontSize: theme.typography.sizes.caption,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xxs,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  input: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.m,
-    padding: theme.spacing.m,
-    fontSize: theme.typography.sizes.body,
-    color: theme.colors.text,
-    ...theme.shadows.small, // Magie : Ombre subtile native
-  },
-  primaryButton: {
-    backgroundColor: theme.colors.primary,
-    padding: theme.spacing.m,
-    borderRadius: theme.borderRadius.m,
+  linkButton: {
+    marginTop: theme.spacing.xl,
     alignItems: 'center',
-    marginTop: theme.spacing.s,
-    height: 56,
-    justifyContent: 'center',
-    ...theme.shadows.medium, // Magie : Ombre plus prononcee pour le call-to-action
+    padding: theme.spacing.s,
   },
-  primaryButtonText: {
-    color: theme.colors.surface,
-    fontSize: theme.typography.sizes.h4,
-    fontWeight: theme.typography.weights.bold,
-  },
+  linkText: {
+    color: theme.colors.primary,
+    fontSize: theme.typography.sizes.body,
+    fontWeight: theme.typography.weights.semibold,
+  }
 });

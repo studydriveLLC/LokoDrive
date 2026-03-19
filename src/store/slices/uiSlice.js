@@ -2,14 +2,23 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const uiSlice = createSlice({
   name: 'ui',
-  initialState: {},
+  initialState: {
+    errorToast: {
+      isVisible: false,
+      message: '',
+    }
+  },
   reducers: {
     showErrorToast: (state, action) => {
-      // Pour l'instant on log l'erreur, on fera une belle UI plus tard
-      console.error('[TOAST ERROR]', action.payload.message);
+      state.errorToast.isVisible = true;
+      state.errorToast.message = action.payload.message || 'Une erreur est survenue.';
+    },
+    hideErrorToast: (state) => {
+      state.errorToast.isVisible = false;
+      state.errorToast.message = '';
     }
   }
 });
 
-export const { showErrorToast } = uiSlice.actions;
+export const { showErrorToast, hideErrorToast } = uiSlice.actions;
 export default uiSlice.reducer;

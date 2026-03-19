@@ -7,7 +7,11 @@ import { setCredentials, setAuthLoading } from '../store/slices/authSlice';
 
 // Imports des ecrans
 import LoginPage from '../screens/auth/LoginPage';
+import RegisterPage from '../screens/auth/RegisterPage';
 import FeedScreen from '../screens/home/FeedScreen';
+
+// Composants globaux
+import ErrorToast from '../components/ui/ErrorToast';
 
 const Stack = createNativeStackNavigator();
 
@@ -18,10 +22,8 @@ export default function AppNavigator() {
   useEffect(() => {
     const checkToken = async () => {
       try {
-        // Au demarrage, on verifie si un token est deja sauvegarde
         const token = await getToken('accessToken');
         if (token) {
-          // Si oui, on le met dans Redux (l'utilisateur evite de se reconnecter)
           dispatch(setCredentials({ user: null, token })); 
         }
       } catch (error) {
@@ -43,14 +45,22 @@ export default function AppNavigator() {
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!isAuthenticated ? (
-        // Groupe d'ecrans non connectes
-        <Stack.Screen name="Login" component={LoginPage} />
-      ) : (
-        // Groupe d'ecrans connectes
-        <Stack.Screen name="Feed" component={FeedScreen} />
-      )}
-    </Stack.Navigator>
+    <View style={{ flex: 1 }}>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!isAuthenticated ? (
+          // Groupe d'ecrans non connectes
+          <>
+            <Stack.Screen name="Login" component={LoginPage} />
+            <Stack.Screen name="Register" component={RegisterPage} />
+          </>
+        ) : (
+          // Groupe d'ecrans connectes
+          <Stack.Screen name="Feed" component={FeedScreen} />
+        )}
+      </Stack.Navigator>
+      
+      {/* Toast d'erreur global instancie par-dessus la navigation */}
+      <ErrorToast />
+    </View>
   );
 }
