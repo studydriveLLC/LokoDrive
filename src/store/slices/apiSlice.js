@@ -1,8 +1,13 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { getToken } from '../secureStoreAdapter';
 
-// L'URL de base pointe vers ton serveur Render grace au fichier .env
-const rawBaseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://studydrive-api.onrender.com/api';
+// L'URL de base pointe STRICTEMENT vers la variable d'environnement pour des raisons de securite.
+const rawBaseUrl = process.env.EXPO_PUBLIC_API_URL;
+
+// Securite developpement : Avertir si la variable n'est pas chargee
+if (!rawBaseUrl && __DEV__) {
+  console.warn("ATTENTION: EXPO_PUBLIC_API_URL n'est pas defini dans le fichier .env !");
+}
 
 export const apiSlice = createApi({
   reducerPath: 'api',
