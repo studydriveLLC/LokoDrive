@@ -3,9 +3,9 @@ import { Modal, StyleSheet, Pressable, View } from 'react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
-  withSpring, 
   withTiming, 
-  runOnJS 
+  runOnJS,
+  Easing
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../../theme/theme';
@@ -17,17 +17,20 @@ export default function LiquidModal({ visible, onClose, children }) {
 
   useEffect(() => {
     if (visible) {
-      opacity.value = withTiming(1, { duration: 300 });
-      translateY.value = withSpring(0, { damping: 15, stiffness: 100 });
+      opacity.value = withTiming(1, { duration: 250 });
+      translateY.value = withTiming(0, { 
+        duration: 350,
+        easing: Easing.out(Easing.exp) 
+      });
     } else {
-      translateY.value = withTiming(1000, { duration: 300 });
-      opacity.value = withTiming(0, { duration: 300 });
+      translateY.value = withTiming(1000, { duration: 250 });
+      opacity.value = withTiming(0, { duration: 200 });
     }
   }, [visible]);
 
   const handleClose = () => {
     translateY.value = withTiming(1000, { duration: 250 });
-    opacity.value = withTiming(0, { duration: 250 }, (isFinished) => {
+    opacity.value = withTiming(0, { duration: 200 }, (isFinished) => {
       if (isFinished) {
         runOnJS(onClose)();
       }

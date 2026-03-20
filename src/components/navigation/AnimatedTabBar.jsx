@@ -30,7 +30,7 @@ const TabItem = ({ isFocused, route, onPress, onLongPressTrigger, theme }) => {
     if (timerRef.current) clearTimeout(timerRef.current);
   };
 
-  const color = isFocused ? theme.colors.primary : '#A0A0A0';
+  const color = isFocused ? theme.colors.primary : theme.colors.textDisabled;
 
   const renderIcon = () => {
     switch (route.name) {
@@ -76,10 +76,10 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
   const handleCentralAction = () => {
     switch (currentRouteName) {
       case 'Ressources':
-        console.log("Ouverture du formulaire de dépôt de sujet PDF");
+        console.log("Ouverture du formulaire de depot de sujet PDF");
         break;
       case 'PourToi':
-        console.log("Ouverture de l'interface de création de post média");
+        console.log("Ouverture de l'interface de creation de post media");
         break;
       case 'Messages':
         console.log("Ouverture de la liste des contacts pour nouveau chat");
@@ -96,7 +96,15 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
 
   return (
     <>
-      <View style={[styles.tabBarContainer, { paddingBottom: insets.bottom || 15 }]}>
+      <View style={[
+        styles.tabBarContainer, 
+        { 
+          paddingBottom: insets.bottom || 15,
+          backgroundColor: theme.colors.glassBackground,
+          borderTopColor: theme.colors.glassBorder,
+          borderTopWidth: 1,
+        }
+      ]}>
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
 
@@ -104,10 +112,16 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
             return (
               <Pressable
                 key={route.key}
-                style={[styles.centralButtonContainer, { backgroundColor: theme.colors.primary }]}
+                style={[
+                  styles.centralButtonContainer, 
+                  { 
+                    backgroundColor: theme.colors.primary,
+                    borderColor: theme.colors.background 
+                  }
+                ]}
                 onPress={handleCentralAction}
               >
-                <Plus color="#FFFFFF" size={32} />
+                <Plus color={theme.colors.surface} size={32} />
               </Pressable>
             );
           }
@@ -122,7 +136,6 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
             if (!isFocused && !event.defaultPrevented) {
               navigation.navigate(route.name);
             } else if (isFocused) {
-              // Émission de l'événement Smart Tap
               DeviceEventEmitter.emit('SMART_TAB_PRESS', { routeName: route.name });
             }
           };
@@ -152,7 +165,6 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
 const styles = StyleSheet.create({
   tabBarContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     paddingTop: 10,
@@ -197,6 +209,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     borderWidth: 4,
-    borderColor: '#F2E6E4', 
   }
 });
