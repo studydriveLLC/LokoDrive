@@ -1,9 +1,43 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, Text, DeviceEventEmitter } from 'react-native';
+import { View, StyleSheet, DeviceEventEmitter } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedHeader from '../../components/navigation/AnimatedHeader';
+import PostCard from '../../components/feed/PostCard';
 import { useAppTheme } from '../../theme/theme';
+
+const MOCK_POSTS = [
+  {
+    id: '1',
+    author: { pseudo: 'Kevy', avatar: null, hasBadge: true },
+    date: 'A l\'instant',
+    description: 'Bienvenue sur la toute premiere version de notre fil d\'actualite ! L\'integration des cartes modulaires est un succes total. L\'UI est propre, immersive et prete a accueillir le backend.',
+    likes: 12500,
+    comments: 342,
+    shares: 89,
+    isLikedByMe: false,
+  },
+  {
+    id: '2',
+    author: { pseudo: 'Marcio_ADM', avatar: 'https://i.pravatar.cc/150?img=11', hasBadge: true },
+    date: 'Il y a 2h',
+    description: 'N\'oubliez pas que les examens approchent. J\'ai poste de nouveaux sujets de mathematiques dans la section Ressources. Allez jeter un oeil pour vous preparer au mieux.',
+    likes: 850,
+    comments: 45,
+    shares: 12,
+    isLikedByMe: true,
+  },
+  {
+    id: '3',
+    author: { pseudo: 'SophieL', avatar: 'https://i.pravatar.cc/150?img=5', hasBadge: false },
+    date: 'Hier',
+    description: 'Est-ce que quelqu\'un aurait le cours complet de Microbiologie Alimentaire ? Je suis prete a l\'echanger contre mes fiches de revision en qualite et normes. Merci d\'avance !',
+    likes: 42,
+    comments: 15,
+    shares: 2,
+    isLikedByMe: false,
+  }
+];
 
 export default function FeedScreen({ navigation }) {
   const theme = useAppTheme();
@@ -25,15 +59,12 @@ export default function FeedScreen({ navigation }) {
       if (event.routeName !== 'PourToi') return;
 
       if (scrollY.value > 100) {
-        // L'utilisateur est bas dans la page : on sauvegarde et on remonte
         savedScrollPosition.current = scrollY.value;
         listRef.current?.scrollToOffset({ offset: 0, animated: true });
       } else if (savedScrollPosition.current > 100) {
-        // L'utilisateur est en haut et a une sauvegarde : on le redescend où il était
         listRef.current?.scrollToOffset({ offset: savedScrollPosition.current, animated: true });
-        savedScrollPosition.current = 0; // On réinitialise après utilisation
+        savedScrollPosition.current = 0; 
       } else {
-        // L'utilisateur est en haut sans sauvegarde : on rafraîchit
         triggerRefresh();
       }
     });
@@ -45,13 +76,10 @@ export default function FeedScreen({ navigation }) {
 
   const triggerRefresh = () => {
     setIsRefreshing(true);
-    // Simulation d'un appel API de rafraîchissement
     setTimeout(() => {
       setIsRefreshing(false);
     }, 1500);
   };
-
-  const mockData = Array.from({ length: 20 }, (_, i) => ({ id: i.toString(), title: `Publication test numéro ${i + 1}` }));
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -59,7 +87,7 @@ export default function FeedScreen({ navigation }) {
       
       <Animated.FlatList
         ref={listRef}
-        data={mockData}
+        data={MOCK_POSTS}
         keyExtractor={(item) => item.id}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
@@ -71,14 +99,7 @@ export default function FeedScreen({ navigation }) {
           paddingBottom: 100, 
           paddingHorizontal: 16,
         }}
-        renderItem={({ item }) => (
-          <View style={[styles.mockCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-            <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: '600' }}>{item.title}</Text>
-            <Text style={{ color: theme.colors.textMuted, marginTop: 8 }}>
-              Le contenu de la publication s'affichera ici avec le composant de carte finalisé.
-            </Text>
-          </View>
-        )}
+        renderItem={({ item }) => <PostCard post={item} />}
       />
     </View>
   );
@@ -87,16 +108,5 @@ export default function FeedScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  mockCard: {
-    padding: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    elevation: 2,
-    shadowColor: '#5170FF',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
   },
 });
