@@ -2,15 +2,16 @@ import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, TextInput, Pressable, DeviceEventEmitter, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Search, Bell, Menu } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/theme';
 import { useHeaderAnimations } from './useHeaderAnimations';
 import AnimatedSearchPlaceholder from './AnimatedSearchPlaceholder';
 
-export default function AnimatedHeader({ scrollY, navigation }) {
+export default function AnimatedHeader({ scrollY }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const navigation = useNavigation();
   
   const [searchValue, setSearchValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);

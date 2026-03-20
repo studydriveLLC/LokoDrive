@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Platform } from 'react-native';
 import { FileUp, X, File, CheckCircle2 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import BottomSheet from '../ui/BottomSheet';
 import { useAppTheme } from '../../theme/theme';
+import apiClient from '../../api/client';
 
 const CATEGORIES = ['Microbiologie', 'Biochimie', 'Qualité', 'Laboratoire'];
-// La liste complète et précise des niveaux d'étude
 const LEVELS = ['BTS 1', 'BTS 2', 'Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2'];
 
 export default function UploadResourceModal({ visible, onClose }) {
@@ -19,9 +19,15 @@ export default function UploadResourceModal({ visible, onClose }) {
   const [level, setLevel] = useState(LEVELS[0]);
   
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadSuccess, setIsUploadSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  
   const uploadProgress = useSharedValue(0);
 
   const handlePickFile = async () => {
+    setUploadError('');
+    setIsUploadSuccess(false);
+    
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
@@ -31,11 +37,17 @@ export default function UploadResourceModal({ visible, onClose }) {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const picked = result.assets[0];
         const sizeInMB = (picked.size / (1024 * 1024)).toFixed(2);
+        
+        let fileUri = picked.uri;
+        if (Platform.OS === 'android' && !fileUri.startsWith('file://')) {
+          fileUri = `file://${fileUri}`;
+        }
+
         setFile({
           name: picked.name,
-          uri: picked.uri,
+          uri: fileUri,
           size: sizeInMB,
-          mimeType: picked.mimeType
+          mimeType: picked.mimeType || 'application/octet-stream'
         });
       }
     } catch (error) {
@@ -43,31 +55,60 @@ export default function UploadResourceModal({ visible, onClose }) {
     }
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!file || !title.trim()) return;
 
     setIsUploading(true);
+    setIsUploadSuccess(false);
+    setUploadError('');
     uploadProgress.value = 0;
 
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 20;
-      if (progress >= 100) {
-        progress = 100;
-        uploadProgress.value = withTiming(100, { duration: 200 });
-        clearInterval(interval);
-        
-        setTimeout(() => {
-          setIsUploading(false);
-          setFile(null);
-          setTitle('');
-          uploadProgress.value = 0;
-          onClose();
-        }, 1000);
-      } else {
-        uploadProgress.value = withTiming(progress, { duration: 200, easing: Easing.linear });
-      }
-    }, 300);
+    const formData = new FormData();
+    formData.append('title', title.trim());
+    formData.append('category', category);
+    formData.append('level', level);
+    
+    formData.append('file', {
+      uri: file.uri,
+      name: file.name,
+      type: file.mimeType,
+    });
+
+    try {
+      await apiClient.post('/resources', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Accept': 'application/json',
+        },
+        timeout: 120000, 
+        transformRequest: (data) => data,
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            uploadProgress.value = withTiming(percentCompleted, { duration: 200, easing: Easing.linear });
+          }
+        },
+      });
+
+      uploadProgress.value = withTiming(100, { duration: 200 });
+      setIsUploadSuccess(true);
+      
+      setTimeout(() => {
+        setIsUploading(false);
+        setIsUploadSuccess(false);
+        setFile(null);
+        setTitle('');
+        uploadProgress.value = 0;
+        onClose();
+      }, 1500);
+
+    } catch (error) {
+      console.log("Détail de l'erreur réseau :", error.message, error.response?.data);
+      setIsUploading(false);
+      setIsUploadSuccess(false);
+      uploadProgress.value = 0;
+      setUploadError("Le délai d'envoi a expiré ou le fichier est trop lourd.");
+    }
   };
 
   const progressStyle = useAnimatedStyle(() => ({
@@ -78,13 +119,14 @@ export default function UploadResourceModal({ visible, onClose }) {
 
   const renderFooter = () => (
     <View style={[styles.footer, { backgroundColor: theme.colors.background, borderTopColor: theme.colors.divider }]}>
+      {uploadError ? <Text style={[styles.errorText, { color: theme.colors.error || 'red' }]}>{uploadError}</Text> : null}
       <Pressable 
         style={[styles.submitButton, { backgroundColor: isFormValid ? theme.colors.primary : theme.colors.primaryLight }]}
         disabled={!isFormValid || isUploading}
         onPress={handleUpload}
       >
         {isUploading && (
-          <Animated.View style={[styles.progressBar, { backgroundColor: '#217346' }, progressStyle]} />
+          <Animated.View style={[styles.progressBar, { backgroundColor: theme.colors.primaryDark }, progressStyle]} />
         )}
         <Text style={[styles.submitText, { color: isFormValid ? theme.colors.surface : theme.colors.textDisabled }]}>
           {isUploading ? "Envoi en cours..." : "Partager le document"}
@@ -123,8 +165,8 @@ export default function UploadResourceModal({ visible, onClose }) {
                 <X color={theme.colors.primaryDark} size={20} />
               </Pressable>
             )}
-            {isUploading && uploadProgress.value === 100 && (
-              <CheckCircle2 color="#217346" size={24} />
+            {isUploadSuccess && (
+              <CheckCircle2 color={theme.colors.primaryDark} size={24} />
             )}
           </View>
         )}
@@ -214,4 +256,5 @@ const styles = StyleSheet.create({
   submitButton: { height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   progressBar: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   submitText: { fontSize: 16, fontWeight: '700', zIndex: 1 },
+  errorText: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 10 },
 });

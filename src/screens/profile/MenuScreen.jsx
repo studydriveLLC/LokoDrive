@@ -1,33 +1,68 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Settings, Bell, ShieldQuestion, UserCheck, LogOut } from 'lucide-react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import * as SecureStore from 'expo-secure-store';
+
 import MenuItem from '../../components/profile/MenuItem';
 import EditProfileModal from '../../components/profile/EditProfileModal';
+import LogoutModal from '../../components/profile/LogoutModal';
 import { useAppTheme } from '../../theme/theme';
+
+import { useUpdateProfileMutation, useLogoutMutation } from '../../store/api/authApiSlice';
+import { updateUser, logout } from '../../store/slices/authSlice';
 
 export default function MenuScreen({ navigation }) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  
-  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-  
-  const [user, setUser] = useState({
-    pseudo: 'Kevy',
-    email: 'kevy.pro@studydrive.com',
-    bio: 'UX Builder Pro Max | Étudiant en informatique',
-    avatar: null
-  });
+  const dispatch = useDispatch();
 
-  const handleUpdateProfile = (updatedData) => {
-    setUser(prev => ({ ...prev, ...updatedData }));
+  // 1. Récupération de l'utilisateur réel depuis Redux
+  const user = useSelector((state) => state.auth.user);
+
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
+
+  // 2. Initialisation des mutations API
+  const [updateProfileApi, { isLoading: isUpdating }] = useUpdateProfileMutation();
+  const [logoutApi] = useLogoutMutation();
+
+  const handleUpdateProfile = async (updatedData) => {
+    try {
+      // Appel réseau
+      const response = await updateProfileApi(updatedData).unwrap();
+      
+      // Mise à jour de l'état global avec les nouvelles données du serveur
+      // On anticipe la structure de réponse : data.user (sinon fallback sur updatedData)
+      const newUserData = response.data?.user || updatedData;
+      dispatch(updateUser(newUserData));
+      
+      setIsEditModalVisible(false);
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du profil :", error);
+      // Ici, on pourrait déclencher un composant ErrorToast si tu en as un
+    }
   };
 
-  const handleLogout = () => {
-    Alert.alert("Déconnexion", "Êtes-vous sûr de vouloir vous déconnecter ?", [
-      { text: "Annuler", style: "cancel" },
-      { text: "Se déconnecter", style: "destructive", onPress: () => console.log("Déconnexion") }
-    ]);
+  const handleConfirmLogout = async () => {
+    try {
+      // Invalidation du token côté serveur (cookie refreshToken)
+      await logoutApi().unwrap();
+    } catch (error) {
+      console.error("Erreur serveur lors de la déconnexion, forçage local.", error);
+    } finally {
+      // Nettoyage critique côté client quoi qu'il arrive
+      try {
+        await SecureStore.deleteItemAsync('accessToken');
+        await SecureStore.deleteItemAsync('refreshToken');
+      } catch (storeError) {
+        console.error("Erreur lors du nettoyage du SecureStore", storeError);
+      }
+      
+      // Réinitialisation de l'état Redux (déclenche la redirection auto vers Login)
+      dispatch(logout());
+    }
   };
 
   return (
@@ -45,12 +80,16 @@ export default function MenuScreen({ navigation }) {
           <View style={styles.profileInfoRow}>
             <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.primaryLight }]}>
               <Text style={{ color: theme.colors.primaryDark, fontSize: 24, fontWeight: '700' }}>
-                {user.pseudo ? user.pseudo[0].toUpperCase() : 'K'}
+                {user?.pseudo ? user.pseudo[0].toUpperCase() : 'K'}
               </Text>
             </View>
             <View style={styles.profileTextContainer}>
-              <Text style={[styles.pseudo, { color: theme.colors.text }]}>{user.pseudo}</Text>
-              <Text style={[styles.email, { color: theme.colors.textMuted }]}>{user.email}</Text>
+              <Text style={[styles.pseudo, { color: theme.colors.text }]}>
+                {user?.pseudo || 'Utilisateur'}
+              </Text>
+              <Text style={[styles.email, { color: theme.colors.textMuted }]}>
+                {user?.email || 'Email non renseigné'}
+              </Text>
             </View>
           </View>
           
@@ -79,16 +118,25 @@ export default function MenuScreen({ navigation }) {
             icon={<LogOut color={theme.colors.error} size={20} />} 
             label="Se déconnecter" 
             isDestructive={true} 
-            onPress={handleLogout} 
+            onPress={() => setIsLogoutModalVisible(true)} 
           />
         </View>
       </ScrollView>
 
+      {/* Modal d'édition du profil avec gestion de l'état de chargement */}
       <EditProfileModal 
         visible={isEditModalVisible} 
         onClose={() => setIsEditModalVisible(false)} 
         currentUser={user}
         onSave={handleUpdateProfile}
+        isLoading={isUpdating}
+      />
+
+      {/* Modal de confirmation de déconnexion */}
+      <LogoutModal
+        visible={isLogoutModalVisible}
+        onClose={() => setIsLogoutModalVisible(false)}
+        onConfirm={handleConfirmLogout}
       />
     </View>
   );

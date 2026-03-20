@@ -1,28 +1,40 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, Image, ActivityIndicator } from 'react-native';
 import { Camera } from 'lucide-react-native';
 import BottomSheet from '../ui/BottomSheet';
 import { useAppTheme } from '../../theme/theme';
 
-export default function EditProfileModal({ visible, onClose, currentUser, onSave }) {
+export default function EditProfileModal({ visible, onClose, currentUser, onSave, isLoading }) {
   const theme = useAppTheme();
   
-  const [pseudo, setPseudo] = useState(currentUser?.pseudo || '');
-  const [bio, setBio] = useState(currentUser?.bio || '');
+  const [pseudo, setPseudo] = useState('');
+  const [bio, setBio] = useState('');
+
+  useEffect(() => {
+    if (visible && currentUser) {
+      setPseudo(currentUser.pseudo || '');
+      setBio(currentUser.bio || '');
+    }
+  }, [visible, currentUser]);
   
   const handleSave = () => {
-    onSave({ pseudo, bio });
-    onClose();
+    if (pseudo.trim() && !isLoading) {
+      onSave({ pseudo, bio });
+    }
   };
 
   const renderFooter = () => (
     <View style={[styles.footer, { backgroundColor: theme.colors.background, borderTopColor: theme.colors.divider }]}>
       <Pressable 
-        style={[styles.saveButton, { backgroundColor: pseudo.trim() ? theme.colors.primary : theme.colors.border }]}
-        disabled={!pseudo.trim()}
+        style={[styles.saveButton, { backgroundColor: pseudo.trim() && !isLoading ? theme.colors.primary : theme.colors.border }]}
+        disabled={!pseudo.trim() || isLoading}
         onPress={handleSave}
       >
-        <Text style={[styles.saveText, { color: theme.colors.surface }]}>Enregistrer les modifications</Text>
+        {isLoading ? (
+          <ActivityIndicator color={theme.colors.surface} />
+        ) : (
+          <Text style={[styles.saveText, { color: theme.colors.surface }]}>Enregistrer les modifications</Text>
+        )}
       </Pressable>
     </View>
   );
@@ -57,6 +69,7 @@ export default function EditProfileModal({ visible, onClose, currentUser, onSave
             onChangeText={setPseudo}
             placeholder="Votre pseudo"
             placeholderTextColor={theme.colors.textDisabled}
+            editable={!isLoading}
           />
         </View>
 
@@ -70,6 +83,7 @@ export default function EditProfileModal({ visible, onClose, currentUser, onSave
             placeholderTextColor={theme.colors.textDisabled}
             multiline
             maxLength={150}
+            editable={!isLoading}
           />
         </View>
       </View>

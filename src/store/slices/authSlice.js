@@ -18,6 +18,11 @@ const authSlice = createSlice({
       state.isAuthenticated = !!token;
       state.isLoading = false;
     },
+    updateUser: (state, action) => {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+      }
+    },
     logout: (state) => {
       state.user = null;
       state.token = null;
@@ -30,7 +35,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setCredentials, logout, setAuthLoading } = authSlice.actions;
+export const { setCredentials, updateUser, logout, setAuthLoading } = authSlice.actions;
 
-// C'est cet export qui manquait ou etait mal lu par store.js
 export default authSlice.reducer;

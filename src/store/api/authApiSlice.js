@@ -4,30 +4,38 @@ export const authApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
-        url: '/auth/login',
+        url: '/v1/auth/login',
         method: 'POST',
         body: credentials,
       }),
     }),
     register: builder.mutation({
       query: (userData) => ({
-        url: '/auth/register',
+        url: '/v1/auth/register',
         method: 'POST',
         body: userData,
       }),
     }),
     logout: builder.mutation({
       query: () => ({
-        url: '/auth/logout',
+        url: '/v1/auth/logout',
         method: 'POST',
       }),
     }),
+    updateProfile: builder.mutation({
+      query: (userData) => ({
+        url: '/v1/users/profile',
+        method: 'PATCH',
+        body: userData,
+      }),
+    }),
   }),
-  overrideExisting: true, // INDISPENSABLE pour contrer les bugs du Fast Refresh d'Expo
+  overrideExisting: true, 
 });
 
 export const { 
   useLoginMutation, 
   useRegisterMutation, 
-  useLogoutMutation 
+  useLogoutMutation,
+  useUpdateProfileMutation
 } = authApiSlice;
