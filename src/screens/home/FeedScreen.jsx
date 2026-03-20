@@ -1,98 +1,64 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
+import { View, StyleSheet, Text } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { logout } from '../../store/slices/authSlice';
-import { deleteToken } from '../../store/secureStoreAdapter';
-import { useAppTheme, spacing, typography, borderRadius } from '../../theme/theme';
+import AnimatedHeader from '../../components/navigation/AnimatedHeader';
+import { useAppTheme } from '../../theme/theme';
 
-export default function FeedScreen() {
-  const dispatch = useDispatch();
+export default function FeedScreen({ navigation }) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const user = useSelector((state) => state.auth.user);
+  const scrollY = useSharedValue(0);
 
-  const handleLogout = async () => {
-    await deleteToken('accessToken');
-    dispatch(logout());
-  };
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  const mockData = Array.from({ length: 20 }, (_, i) => ({ id: i.toString(), title: `Publication test numéro ${i + 1}` }));
 
   return (
-    <View style={[styles.mainWrapper, { backgroundColor: theme.colors.background }]}>
-      <ScrollView 
-        contentContainerStyle={[
-          styles.scrollContainer, 
-          { paddingTop: insets.top + spacing.xl } // Padding dynamique sous la barre d'état
-        ]}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AnimatedHeader scrollY={scrollY} title="Pour Toi" navigation={navigation} />
+      
+      <Animated.FlatList
+        data={mockData}
+        keyExtractor={(item) => item.id}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-      >
-        <Text style={[styles.title, { color: theme.colors.text }]}>Flux d'actualité</Text>
-        <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
-          Connecté en tant que : {user?.pseudo || 'Utilisateur'}
-        </Text>
-        
-        {/* Fausses cartes temporaires pour tester le scroll */}
-        {[1, 2, 3, 4].map((item) => (
-          <View 
-            key={item} 
-            style={[
-              styles.dummyPost, 
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }
-            ]}
-          >
-            <Text style={{ color: theme.colors.textMuted }}>Espace pour le post #{item}</Text>
+        contentContainerStyle={{
+          paddingTop: 140 + insets.top, 
+          paddingBottom: 100, 
+          paddingHorizontal: 16,
+        }}
+        renderItem={({ item }) => (
+          <View style={[styles.mockCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: '600' }}>{item.title}</Text>
+            <Text style={{ color: theme.colors.textMuted, marginTop: 8 }}>
+              Le contenu de la publication s'affichera ici avec le composant de carte finalisé.
+            </Text>
           </View>
-        ))}
-
-        <TouchableOpacity 
-          style={[styles.button, { backgroundColor: theme.colors.error }]} 
-          onPress={handleLogout}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.buttonText, { color: theme.colors.surface }]}>Se déconnecter</Text>
-        </TouchableOpacity>
-      </ScrollView>
+        )}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mainWrapper: {
+  container: {
     flex: 1,
   },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.l,
-    paddingBottom: spacing.xxxl,
-  },
-  title: {
-    fontSize: typography.sizes.h2,
-    fontWeight: typography.weights.bold,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: typography.sizes.body,
-    marginBottom: spacing.xl,
-  },
-  dummyPost: {
-    height: 200,
+  mockCard: {
+    padding: 20,
+    marginBottom: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderRadius: borderRadius.l,
-    marginBottom: spacing.m,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 1,
-  },
-  button: {
-    marginTop: spacing.xl,
-    paddingHorizontal: spacing.l,
-    paddingVertical: spacing.m,
-    borderRadius: borderRadius.m,
     elevation: 2,
-    alignItems: 'center',
+    shadowColor: '#5170FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
   },
-  buttonText: {
-    fontWeight: typography.weights.bold,
-    fontSize: typography.sizes.body,
-  }
 });
