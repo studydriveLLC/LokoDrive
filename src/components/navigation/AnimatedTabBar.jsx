@@ -1,11 +1,12 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, DeviceEventEmitter } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HardDrive, FolderOpen, Target, MessageSquare, FileText, Plus } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/theme';
+import HelpModal from './HelpModal';
 
-const TabItem = ({ isFocused, route, onPress, theme }) => {
+const TabItem = ({ isFocused, route, onPress, onLongPressTrigger, theme }) => {
   const scale = useSharedValue(isFocused ? 1 : 0);
   const timerRef = useRef(null);
 
@@ -21,7 +22,7 @@ const TabItem = ({ isFocused, route, onPress, theme }) => {
 
   const handlePressIn = () => {
     timerRef.current = setTimeout(() => {
-      console.log(`Ouverture de la modale d'aide pour : ${route.name}`);
+      onLongPressTrigger(route.name);
     }, 5000);
   };
 
@@ -66,51 +67,85 @@ const TabItem = ({ isFocused, route, onPress, theme }) => {
 export default function AnimatedTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  
+  const [helpModalVisible, setHelpModalVisible] = useState(false);
+  const [activeHelpRoute, setActiveHelpRoute] = useState(null);
+
+  const currentRouteName = state.routes[state.index].name;
+
+  const handleCentralAction = () => {
+    switch (currentRouteName) {
+      case 'Ressources':
+        console.log("Ouverture du formulaire de dépôt de sujet PDF");
+        break;
+      case 'PourToi':
+        console.log("Ouverture de l'interface de création de post média");
+        break;
+      case 'Messages':
+        console.log("Ouverture de la liste des contacts pour nouveau chat");
+        break;
+      default:
+        console.log("Action centrale neutre");
+    }
+  };
+
+  const triggerHelpModal = (routeName) => {
+    setActiveHelpRoute(routeName);
+    setHelpModalVisible(true);
+  };
 
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: insets.bottom || 15 }]}>
-      {state.routes.map((route, index) => {
-        const isFocused = state.index === index;
+    <>
+      <View style={[styles.tabBarContainer, { paddingBottom: insets.bottom || 15 }]}>
+        {state.routes.map((route, index) => {
+          const isFocused = state.index === index;
 
-        if (route.name === 'Action') {
-          return (
-            <Pressable
-              key={route.key}
-              style={[styles.centralButtonContainer, { backgroundColor: theme.colors.primary }]}
-              onPress={() => {
-                console.log("Ouverture de l'action contextuelle");
-              }}
-            >
-              <Plus color="#FFFFFF" size={32} />
-            </Pressable>
-          );
-        }
-
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
-          } else if (isFocused) {
-            console.log(`Scroll To Top déclenché pour ${route.name}`);
+          if (route.name === 'Action') {
+            return (
+              <Pressable
+                key={route.key}
+                style={[styles.centralButtonContainer, { backgroundColor: theme.colors.primary }]}
+                onPress={handleCentralAction}
+              >
+                <Plus color="#FFFFFF" size={32} />
+              </Pressable>
+            );
           }
-        };
 
-        return (
-          <TabItem
-            key={route.key}
-            isFocused={isFocused}
-            route={route}
-            onPress={onPress}
-            theme={theme}
-          />
-        );
-      })}
-    </View>
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            } else if (isFocused) {
+              // Émission de l'événement Smart Tap
+              DeviceEventEmitter.emit('SMART_TAB_PRESS', { routeName: route.name });
+            }
+          };
+
+          return (
+            <TabItem
+              key={route.key}
+              isFocused={isFocused}
+              route={route}
+              onPress={onPress}
+              onLongPressTrigger={triggerHelpModal}
+              theme={theme}
+            />
+          );
+        })}
+      </View>
+
+      <HelpModal 
+        visible={helpModalVisible} 
+        onClose={() => setHelpModalVisible(false)} 
+        routeName={activeHelpRoute} 
+      />
+    </>
   );
 }
 

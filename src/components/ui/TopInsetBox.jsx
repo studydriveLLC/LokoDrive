@@ -1,11 +1,23 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, DeviceEventEmitter } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../theme/theme';
 
 export default function TopInsetBox() {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  
+  const [bgColor, setBgColor] = useState(theme.colors.background);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('UPDATE_TOP_INSET_COLOR', (color) => {
+      setBgColor(color);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   if (insets.top === 0) return null;
 
@@ -13,7 +25,7 @@ export default function TopInsetBox() {
     <View 
       style={[
         styles.shield, 
-        { height: insets.top, backgroundColor: theme.colors.background }
+        { height: insets.top, backgroundColor: bgColor }
       ]} 
     />
   );

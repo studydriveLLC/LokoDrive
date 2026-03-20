@@ -1,111 +1,43 @@
-import React from 'react';
-import { View, Text, StyleSheet, TextInput, Platform, Pressable } from 'react-native';
-import Animated, { interpolate, Extrapolate, useAnimatedStyle } from 'react-native-reanimated';
+import React, { useCallback, useState } from 'react';
+import { View, StyleSheet, TextInput, Pressable, DeviceEventEmitter } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Search, Bell, Menu, Home } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/theme';
-
-const HEADER_MAX_HEIGHT = 130;
-const HEADER_MIN_HEIGHT = 60;
-const SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
+import { useHeaderAnimations } from './useHeaderAnimations';
+import AnimatedSearchPlaceholder from './AnimatedSearchPlaceholder';
 
 export default function AnimatedHeader({ scrollY, title = "StudyDrive", navigation }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  
+  const [searchValue, setSearchValue] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
-  const headerHeight = useAnimatedStyle(() => {
-    const height = interpolate(
-      scrollY.value,
-      [0, SCROLL_DISTANCE],
-      [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
-      Extrapolate.CLAMP
-    );
-    return {
-      height: height + insets.top,
-      paddingTop: insets.top,
-    };
-  });
+  const animations = useHeaderAnimations(scrollY, insets);
 
-  const largeSearchOpacity = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      scrollY.value,
-      [0, SCROLL_DISTANCE / 2],
-      [1, 0],
-      Extrapolate.CLAMP
-    );
-    return { opacity };
-  });
+  useFocusEffect(
+    useCallback(() => {
+      DeviceEventEmitter.emit('UPDATE_TOP_INSET_COLOR', theme.colors.primary);
+      return () => {
+        DeviceEventEmitter.emit('UPDATE_TOP_INSET_COLOR', theme.colors.background);
+      };
+    }, [theme])
+  );
 
-  const largeSearchTranslateY = useAnimatedStyle(() => {
-    const translateY = interpolate(
-      scrollY.value,
-      [0, SCROLL_DISTANCE],
-      [0, -20],
-      Extrapolate.CLAMP
-    );
-    return { transform: [{ translateY }] };
-  });
-
-  const miniSearchOpacity = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      scrollY.value,
-      [SCROLL_DISTANCE / 2, SCROLL_DISTANCE],
-      [0, 1],
-      Extrapolate.CLAMP
-    );
-    return { opacity };
-  });
-
-  const titleOpacity = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      scrollY.value,
-      [0, SCROLL_DISTANCE / 2],
-      [1, 0],
-      Extrapolate.CLAMP
-    );
-    return { opacity };
-  });
-
-  const logoTranslateX = useAnimatedStyle(() => {
-    const translateX = interpolate(
-      scrollY.value,
-      [0, SCROLL_DISTANCE],
-      [0, -50], 
-      Extrapolate.CLAMP
-    );
-    return { transform: [{ translateX }] };
-  });
-
-  const logoOpacity = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      scrollY.value,
-      [0, SCROLL_DISTANCE / 1.5],
-      [1, 0],
-      Extrapolate.CLAMP
-    );
-    return { opacity };
-  });
-
-  const bellTranslateX = useAnimatedStyle(() => {
-    const translateX = interpolate(
-      scrollY.value,
-      [0, SCROLL_DISTANCE],
-      [50, 0], 
-      Extrapolate.CLAMP
-    );
-    return { transform: [{ translateX }] };
-  });
+  const shouldHidePlaceholder = isFocused || searchValue.length > 0;
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: theme.colors.primary }, headerHeight, theme.shadows.medium]}>
+    <Animated.View style={[styles.container, { backgroundColor: theme.colors.primary }, animations.headerHeight, theme.shadows.medium]}>
       
-      <View style={styles.topRow}>
+      <View style={[styles.topRow, { height: 60 }]}>
         <View style={styles.leftSection}>
-          <Animated.View style={[styles.logoContainer, logoTranslateX, logoOpacity]}>
+          <Animated.View style={[styles.logoContainer, animations.logoTranslateX, animations.logoOpacity]}>
             <Home color={theme.colors.surface} size={28} strokeWidth={2.5} />
           </Animated.View>
 
-          <Animated.View style={[styles.bellContainerAnimated, bellTranslateX]}>
+          <Animated.View style={[styles.bellContainerAnimated, animations.bellTranslateX]}>
             <Pressable onPress={() => console.log('Ouvrir les notifications')}>
               <Bell color={theme.colors.surface} size={24} />
               <View style={[styles.badge, { backgroundColor: theme.colors.error }]} />
@@ -114,10 +46,10 @@ export default function AnimatedHeader({ scrollY, title = "StudyDrive", navigati
         </View>
 
         <View style={styles.centerSection}>
-          <Animated.Text style={[styles.title, { color: theme.colors.surface }, titleOpacity]}>
+          <Animated.Text style={[styles.title, { color: theme.colors.surface }, animations.titleOpacity]}>
             {title}
           </Animated.Text>
-          <Animated.View style={[styles.miniSearchContainer, miniSearchOpacity]}>
+          <Animated.View style={[styles.miniSearchContainer, animations.miniSearchOpacity]}>
             <Search color={theme.colors.surface} size={20} />
           </Animated.View>
         </View>
@@ -129,13 +61,19 @@ export default function AnimatedHeader({ scrollY, title = "StudyDrive", navigati
         </View>
       </View>
 
-      <Animated.View style={[styles.bottomRow, largeSearchOpacity, largeSearchTranslateY]}>
+      <Animated.View style={[styles.bottomRow, animations.largeSearchOpacity, animations.largeSearchTranslateY]}>
         <View style={[styles.searchBar, { backgroundColor: theme.colors.surface }]}>
           <Search color={theme.colors.textMuted} size={20} style={styles.searchIcon} />
+          
+          <AnimatedSearchPlaceholder isHidden={shouldHidePlaceholder} />
+
           <TextInput
-            placeholder="Rechercher des sujets, des membres..."
-            placeholderTextColor={theme.colors.textDisabled}
+            value={searchValue}
+            onChangeText={setSearchValue}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             style={[styles.searchInput, { color: theme.colors.text }]}
+            selectionColor={theme.colors.primary}
           />
         </View>
       </Animated.View>
@@ -156,7 +94,6 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
   },
   topRow: {
-    height: HEADER_MIN_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -223,10 +160,12 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     marginRight: 8,
+    zIndex: 2,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
     height: '100%',
+    zIndex: 1,
   },
 });
