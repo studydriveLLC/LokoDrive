@@ -40,15 +40,21 @@ export default function AppNavigator() {
     const checkToken = async () => {
       try {
         const token = await getToken('accessToken');
-        if (token) {
+        const userDataStr = await getToken('userData');
+
+        if (token && userDataStr) {
+          const savedUser = JSON.parse(userDataStr);
+          
+          // 1. Connexion immediate (Offline-first) grace au cache local
+          dispatch(setCredentials({ user: savedUser, token }));
+
+          // 2. Verification silencieuse en arriere-plan
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const timeoutId = setTimeout(() => controller.abort(), 60000);
 
           try {
             const profileResponse = await fetch(`${rawBaseUrl}/v1/auth/me`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+              headers: { Authorization: `Bearer ${token}` },
               signal: controller.signal,
             });
 
@@ -56,27 +62,28 @@ export default function AppNavigator() {
 
             if (profileResponse.ok) {
               const profileData = await profileResponse.json();
-              dispatch(
-                setCredentials({
-                  user: profileData.data?.user || profileData.data,
-                  token,
-                })
-              );
-            } else if (profileResponse.status === 401) {
+              dispatch(setCredentials({ user: profileData.data?.user || profileData.data, token }));
+            } else if (profileResponse.status === 401 || profileResponse.status === 403) {
+              // Deconnexion STRICTE uniquement si le token est rejete par le serveur
               dispatch(setCredentials({ user: null, token: null }));
             }
           } catch (fetchError) {
             clearTimeout(timeoutId);
-            console.error('Erreur reseau ou timeout', fetchError);
-            dispatch(setCredentials({ user: null, token: null }));
+            // On log l'erreur mais ON NE DECONNECTE PLUS l'utilisateur. La session cachee est maintenue.
+            console.warn('Backend injoignable (Cold Start ou reseau instable). Session locale maintenue.');
           }
+        } else {
+          // Aucun token ou utilisateur en memoire
+          dispatch(setCredentials({ user: null, token: null }));
         }
       } catch (error) {
-        console.error('Erreur restoration session', error);
+        console.error('Erreur lecture SecureStore', error);
+        dispatch(setCredentials({ user: null, token: null }));
       } finally {
         dispatch(setAuthLoading(false));
       }
     };
+    
     checkToken();
   }, [dispatch]);
 

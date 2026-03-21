@@ -55,7 +55,6 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [activeHelpRoute, setActiveHelpRoute] = useState(null);
 
-  // C'est ici qu'on capte le contexte actuel de l'utilisateur
   const currentRouteName = state.routes[state.index].name;
 
   return (
@@ -70,7 +69,6 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
                 key={route.key}
                 style={[styles.centralButtonContainer, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}
                 onPress={() => {
-                  // Le bouton intelligent émet l'action AVEC le contexte
                   DeviceEventEmitter.emit('SMART_ACTION_PRESS', { routeName: currentRouteName });
                 }}
               >
@@ -80,9 +78,16 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
           }
 
           const onPress = () => {
-            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
-            else if (isFocused) DeviceEventEmitter.emit('SMART_TAB_PRESS', { routeName: route.name });
+            if (isFocused) {
+              // Logique stricte : Si deja sur la page, on emet uniquement l'action intelligente
+              DeviceEventEmitter.emit('SMART_TAB_PRESS', { routeName: route.name });
+            } else {
+              // Changement de page classique laisse a React Navigation
+              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+              if (!event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            }
           };
 
           return <TabItem key={route.key} isFocused={isFocused} route={route} onPress={onPress} onLongPressTrigger={(name) => { setActiveHelpRoute(name); setHelpModalVisible(true); }} theme={theme} />;
