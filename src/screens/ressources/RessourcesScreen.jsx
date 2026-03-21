@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, DeviceEventEmitter, RefreshControl } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useGetResourcesQuery, useDeleteResourceMutation } from '../../store/api/resourceApiSlice';
 import AnimatedHeader from '../../components/navigation/AnimatedHeader';
 import SkeletonResourceCard from '../../components/ressources/SkeletonResourceCard';
 import ResourceCard from '../../components/ressources/ResourceCard';
 import ResourceOptionsModal from '../../components/ressources/ResourceOptionsModal';
 import { useAppTheme } from '../../theme/theme';
+import { useGetResourcesQuery, useDeleteResourceMutation } from '../../store/api/resourceApiSlice';
 
 export default function RessourcesScreen({ navigation }) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
+  const listRef = useRef(null);
 
   const [downloads, setDownloads] = useState({});
   const [activeOptionsResource, setActiveOptionsResource] = useState(null);
@@ -29,7 +30,6 @@ export default function RessourcesScreen({ navigation }) {
   } = useGetResourcesQuery({ page: 1, limit: 20 });
 
   const [deleteResource] = useDeleteResourceMutation();
-
   const currentUserId = navigation.getState()?.routes?.find(
     (r) => r.name === 'Main'
   )?.params?.user?._id;
@@ -40,6 +40,16 @@ export default function RessourcesScreen({ navigation }) {
       Object.values(resetTimeouts.current).forEach(clearTimeout);
     };
   }, []);
+
+  // Smart tab press - refresh + scroll to top
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('SMART_TAB_PRESS', (event) => {
+      if (event.routeName !== 'Ressources') return;
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      refetch();
+    });
+    return () => subscription.remove();
+  }, [refetch]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -128,17 +138,13 @@ export default function RessourcesScreen({ navigation }) {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
-        {isError
-          ? 'Erreur lors du chargement'
-          : 'Aucune ressource disponible'}
+        {isError ? 'Erreur lors du chargement' : 'Aucune ressource disponible'}
       </Text>
       <Pressable
         style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
         onPress={refetch}
       >
-        <Text style={[styles.retryText, { color: theme.colors.surface }]}>
-          Reessayer
-        </Text>
+        <Text style={[styles.retryText, { color: theme.colors.surface }]}>Reessayer</Text>
       </Pressable>
     </View>
   );
@@ -148,26 +154,21 @@ export default function RessourcesScreen({ navigation }) {
       <AnimatedHeader scrollY={scrollY} title="Ressources" navigation={navigation} />
 
       {isLoading ? (
-        <FlatList
+        <Animated.FlatList
           data={[1, 2, 3]}
           keyExtractor={(item) => item.toString()}
-          contentContainerStyle={{
-            paddingTop: 140 + insets.top,
-            paddingBottom: 100,
-          }}
+          contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
           renderItem={() => <SkeletonResourceCard />}
         />
       ) : (
         <Animated.FlatList
+          ref={listRef}
           data={resources}
           keyExtractor={(item) => item._id}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingTop: 140 + insets.top,
-            paddingBottom: 100,
-          }}
+          contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
           renderItem={renderItem}
           ListEmptyComponent={renderEmpty}
           refreshControl={
@@ -213,10 +214,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyText: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
+  retryButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20 },
   retryText: { fontSize: 14, fontWeight: '700' },
 });

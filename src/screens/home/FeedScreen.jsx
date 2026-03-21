@@ -12,7 +12,6 @@ import PostOptionsModal from '../../components/feed/PostOptionsModal';
 import { useGetFeedQuery, useToggleLikeMutation } from '../../store/api/postApiSlice';
 import { useAppTheme } from '../../theme/theme';
 
-// Mapping des donnees backend vers le format attendu par PostCard
 const mapPostFromBackend = (post) => {
   const media = (post.content?.mediaUrls || []).map((url) => ({
     type: post.content?.mediaType || 'image',
@@ -41,7 +40,6 @@ const mapPostFromBackend = (post) => {
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
-
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now - date;
@@ -62,17 +60,13 @@ export default function FeedScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
   const user = useSelector((state) => state.auth.user);
-
   const listRef = useRef(null);
-  const savedScrollPosition = useRef(0);
 
-  //Etat des modales
   const [activeCommentPost, setActiveCommentPost] = useState(null);
   const [activeDescPost, setActiveDescPost] = useState(null);
   const [activeSharePost, setActiveSharePost] = useState(null);
   const [activeOptionsPost, setActiveOptionsPost] = useState(null);
 
-  //Appel API pour le feed
   const {
     data: posts = [],
     isLoading,
@@ -82,8 +76,6 @@ export default function FeedScreen({ navigation }) {
   } = useGetFeedQuery();
 
   const [toggleLike] = useToggleLikeMutation();
-
-  //Posts transformes pour le composant
   const transformedPosts = posts.map(mapPostFromBackend);
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -92,25 +84,15 @@ export default function FeedScreen({ navigation }) {
     },
   });
 
+  // Smart tab press - refresh + scroll to top
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('SMART_TAB_PRESS', (event) => {
       if (event.routeName !== 'PourToi') return;
-
-      if (scrollY.value > 100) {
-        savedScrollPosition.current = scrollY.value;
-        listRef.current?.scrollToOffset({ offset: 0, animated: true });
-      } else if (savedScrollPosition.current > 100) {
-        listRef.current?.scrollToOffset({ offset: savedScrollPosition.current, animated: true });
-        savedScrollPosition.current = 0;
-      } else {
-        refetch();
-      }
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      refetch();
     });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
+    return () => subscription.remove();
+  }, [refetch]);
 
   const handleLike = async (postId) => {
     try {
@@ -121,7 +103,6 @@ export default function FeedScreen({ navigation }) {
   };
 
   const handleDelete = async (postId) => {
-    //TODO: Implementer suppression
     console.log('Supprimer post:', postId);
   };
 
@@ -143,10 +124,7 @@ export default function FeedScreen({ navigation }) {
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
             Erreur lors du chargement
           </Text>
-          <Text
-            style={[styles.retryText, { color: theme.colors.primary }]}
-            onPress={refetch}
-          >
+          <Text style={[styles.retryText, { color: theme.colors.primary }]} onPress={refetch}>
             Appuyez pour reessayer
           </Text>
         </View>
@@ -199,10 +177,8 @@ export default function FeedScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AnimatedHeader scrollY={scrollY} title="Pour Toi" navigation={navigation} />
-
       {renderContent()}
 
-      {/* Rendu des modales a la racine de l'ecran */}
       <CommentsModal
         visible={!!activeCommentPost}
         onClose={() => setActiveCommentPost(null)}
@@ -234,9 +210,7 @@ export default function FeedScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -244,28 +218,9 @@ const styles = StyleSheet.create({
     paddingTop: 140,
     paddingHorizontal: 32,
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-  },
-  errorText: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  retryText: {
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    marginTop: 8,
-    fontSize: 14,
-    textAlign: 'center',
-  },
+  loadingText: { marginTop: 16, fontSize: 16 },
+  errorText: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  retryText: { marginTop: 12, fontSize: 16, fontWeight: '500' },
+  emptyText: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  emptySubtext: { marginTop: 8, fontSize: 14, textAlign: 'center' },
 });
