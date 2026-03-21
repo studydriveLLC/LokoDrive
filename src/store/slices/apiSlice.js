@@ -1,94 +1,108 @@
-import { createApi, fetchBaseQuery, retry } from '@reduxjs/toolkit/query/react';
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { Mutex } from 'async-mutex';
+import { Platform } from 'react-native';
 import { getToken, saveToken, deleteToken } from '../secureStoreAdapter';
 import { setCredentials, logout, setTokenRefreshing } from './authSlice';
 
+const mutex = new Mutex();
 const rawBaseUrl = process.env.EXPO_PUBLIC_API_URL;
 
 if (!rawBaseUrl && __DEV__) {
   console.warn("ATTENTION: EXPO_PUBLIC_API_URL n'est pas defini dans le fichier .env !");
 }
 
-const staggeredBaseQuery = retry(
-  fetchBaseQuery({
-    baseUrl: rawBaseUrl,
-    prepareHeaders: async (headers, { getState, endpoint }) => {
-      let token = getState().auth?.token;
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-      if (!token) {
-        token = await getToken('accessToken');
-      }
+const baseQuery = fetchBaseQuery({
+  baseUrl: rawBaseUrl,
+  timeout: 15000,
+  prepareHeaders: async (headers, { getState, endpoint }) => {
+    let token = getState().auth?.token;
 
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
+    if (!token) {
+      token = await getToken('accessToken');
+    }
 
-      const uploadEndpoints = ['uploadResource', 'uploadAvatar', 'uploadPostMedia'];
-      if (uploadEndpoints.includes(endpoint)) {
-        headers.delete('Content-Type');
-      }
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
 
-      return headers;
-    },
-  }),
-  { maxRetries: 3 }
-);
+    const uploadEndpoints = ['uploadResource', 'uploadAvatar', 'uploadPostMedia'];
+    if (uploadEndpoints.includes(endpoint)) {
+      headers.delete('Content-Type');
+    } else {
+      headers.set('Accept', 'application/json');
+    }
 
-let isRefreshing = false;
-let refreshSubscribers = [];
-
-const subscribeTokenRefresh = (cb) => {
-  refreshSubscribers.push(cb);
-};
-
-const onRefreshed = (token) => {
-  refreshSubscribers.forEach((cb) => cb(token));
-  refreshSubscribers = [];
-};
+    return headers;
+  },
+});
 
 const baseQueryWithReauth = async (args, api, extraOptions) => {
-  let result = await staggeredBaseQuery(args, api, extraOptions);
+  await mutex.waitForUnlock();
+  
+  const tokenBeforeRequest = api.getState().auth?.token;
+  
+  const startTime = Date.now();
+  let result = await baseQuery(args, api, extraOptions);
+
+  const duration = Date.now() - startTime;
+  const wasSuspended = duration > 25000;
+  
+  const isBrowserHidden = Platform.OS === 'web' && typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  const isBrowserOffline = Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.onLine === false;
+
+  const isSleepingOrOffline = wasSuspended || isBrowserHidden || isBrowserOffline;
+
+  if (!isSleepingOrOffline && result.error && (result.error.status === 'FETCH_ERROR' || result.error.status === 'TIMEOUT_ERROR')) {
+    let requestUrl = typeof args === 'string' ? args : args?.url || '';
+    console.warn(`[API] Micro-decrochage reseau sur ${requestUrl}. Auto-Retry silencieux dans 1.5s...`);
+    await sleep(1500);
+    result = await baseQuery(args, api, extraOptions);
+  }
 
   if (result.error && result.error.status === 401) {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      api.dispatch(setTokenRefreshing(true));
+    if (!mutex.isLocked()) {
+      const release = await mutex.acquire();
+      try {
+        const tokenAfterLock = api.getState().auth?.token;
+        if (tokenBeforeRequest !== tokenAfterLock) {
+          return await baseQuery(args, api, extraOptions);
+        }
 
-      const refreshResult = await staggeredBaseQuery(
-        { url: '/v1/auth/refresh', method: 'POST' },
-        api,
-        extraOptions
-      );
+        api.dispatch(setTokenRefreshing(true));
 
-      if (refreshResult.data?.status === 'success') {
-        const newToken = refreshResult.data.data.accessToken;
-        const user = api.getState().auth.user;
+        const refreshResult = await baseQuery(
+          { url: '/v1/auth/refresh', method: 'POST' },
+          api,
+          extraOptions
+        );
 
-        api.dispatch(setCredentials({ user, token: newToken }));
-        await saveToken('accessToken', newToken);
-        
-        isRefreshing = false;
-        onRefreshed(newToken);
-        api.dispatch(setTokenRefreshing(false));
+        if (refreshResult.data?.status === 'success') {
+          const newToken = refreshResult.data.data.accessToken;
+          const user = api.getState().auth?.user;
 
-        result = await staggeredBaseQuery(args, api, extraOptions);
-      } else {
-        isRefreshing = false;
-        api.dispatch(setTokenRefreshing(false));
+          api.dispatch(setCredentials({ user, token: newToken }));
+          await saveToken('accessToken', newToken);
+          
+          result = await baseQuery(args, api, extraOptions);
+        } else {
+          api.dispatch(logout());
+          await deleteToken('accessToken');
+          await deleteToken('userData');
+        }
+      } catch (error) {
+        console.error('[API] Echec critique lors du rafraichissement', error);
         api.dispatch(logout());
         await deleteToken('accessToken');
         await deleteToken('userData');
-        
-        // CORRECTION CRITIQUE : On envoie un signal vide pour liberer toutes les requetes en attente
-        onRefreshed(null); 
+      } finally {
+        api.dispatch(setTokenRefreshing(false));
+        release();
       }
     } else {
-      await new Promise((resolve) => {
-        subscribeTokenRefresh((newToken) => {
-          resolve(newToken);
-        });
-      });
-      
-      result = await staggeredBaseQuery(args, api, extraOptions);
+      await mutex.waitForUnlock();
+      result = await baseQuery(args, api, extraOptions);
     }
   }
 
