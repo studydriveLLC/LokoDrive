@@ -9,6 +9,7 @@ export default function ResourceCard({
   downloadState,
   onDownloadAction,
   onOptions,
+  onView,
 }) {
   const theme = useAppTheme();
 
@@ -37,18 +38,11 @@ export default function ResourceCard({
     : resource.fileSizeMB || '0';
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-      ]}
-    >
+    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
       <View style={styles.internalPadding}>
         <View style={styles.headerRow}>
           <View style={styles.formatBadgeContainer}>
-            <View
-              style={[styles.formatDot, { backgroundColor: getFormatColor(resource.format) }]}
-            />
+            <View style={[styles.formatDot, { backgroundColor: getFormatColor(resource.format) }]} />
             <Text style={[styles.formatText, { color: theme.colors.textMuted }]}>
               {resource.format?.toUpperCase()} - {fileSizeMB} MB
             </Text>
@@ -58,26 +52,21 @@ export default function ResourceCard({
           </Pressable>
         </View>
 
-        <View style={styles.contentRow}>
-          <Text
-            style={[styles.title, { color: theme.colors.text }]}
-            numberOfLines={2}
-          >
+        <Pressable 
+          onPress={() => onView && onView(resource)}
+          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }, styles.contentRow]}
+        >
+          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
             {resource.title}
           </Text>
-          <Text
-            style={[styles.description, { color: theme.colors.textMuted }]}
-            numberOfLines={3}
-          >
+          <Text style={[styles.description, { color: theme.colors.textMuted }]} numberOfLines={3}>
             {resource.description}
           </Text>
-        </View>
+        </Pressable>
 
         <View style={styles.footerRow}>
           <View style={styles.leftFooter}>
-            <View
-              style={[styles.levelBadge, { backgroundColor: theme.colors.primaryLight }]}
-            >
+            <View style={[styles.levelBadge, { backgroundColor: theme.colors.primaryLight }]}>
               <Text style={[styles.levelText, { color: theme.colors.primaryDark }]}>
                 {resource.level}
               </Text>
@@ -110,40 +99,18 @@ export default function ResourceCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    marginBottom: 12,
-    paddingTop: 16,
-    paddingBottom: 16,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-  },
+  card: { marginBottom: 12, paddingTop: 16, paddingBottom: 16, borderRadius: 24, borderWidth: 1, borderLeftWidth: 0, borderRightWidth: 0 },
   internalPadding: { paddingHorizontal: 20 },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   formatBadgeContainer: { flexDirection: 'row', alignItems: 'center' },
   formatDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   formatText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
   contentRow: { marginBottom: 16 },
   title: { fontSize: 18, fontWeight: '800', marginBottom: 8, lineHeight: 24 },
   description: { fontSize: 14, lineHeight: 22 },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   leftFooter: { flex: 1, gap: 10 },
-  levelBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
+  levelBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   levelText: { fontSize: 12, fontWeight: '700' },
   statsContainer: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   statItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },

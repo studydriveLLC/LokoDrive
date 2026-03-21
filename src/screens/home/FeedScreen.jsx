@@ -64,6 +64,7 @@ export default function FeedScreen({ navigation }) {
   const scrollY = useSharedValue(0);
   const user = useSelector((state) => state.auth.user);
   const listRef = useRef(null);
+  const isFetchingRef = useRef(false);
 
   useScrollToTop(listRef);
 
@@ -100,13 +101,15 @@ export default function FeedScreen({ navigation }) {
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('SMART_TAB_PRESS', async (event) => {
       if (event.routeName !== 'PourToi') return;
+      if (isFetchingRef.current) return;
       
+      isFetchingRef.current = true;
       setIsSmartRefreshing(true);
       
       try {
         if (listRef.current) {
           if (typeof listRef.current.scrollToOffset === 'function') {
-            listRef.current.scrollToOffset({ offset: 0, animated: false }); // SCROLL INVISIBLE
+            listRef.current.scrollToOffset({ offset: 0, animated: false });
           } else if (listRef.current.getNode && typeof listRef.current.getNode().scrollToOffset === 'function') {
             listRef.current.getNode().scrollToOffset({ offset: 0, animated: false });
           }
@@ -115,8 +118,12 @@ export default function FeedScreen({ navigation }) {
         console.log('Erreur de scroll native (ignoree) :', error);
       }
       
-      await refetch();
-      setIsSmartRefreshing(false);
+      try {
+        await refetch();
+      } finally {
+        setIsSmartRefreshing(false);
+        isFetchingRef.current = false;
+      }
     });
     return () => subscription.remove();
   }, [refetch]);

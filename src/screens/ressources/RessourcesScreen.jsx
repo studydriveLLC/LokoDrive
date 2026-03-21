@@ -2,39 +2,46 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, DeviceEventEmitter, RefreshControl } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import AnimatedHeader from '../../components/navigation/AnimatedHeader';
 import SkeletonResourceCard from '../../components/ressources/SkeletonResourceCard';
 import ResourceCard from '../../components/ressources/ResourceCard';
 import ResourceOptionsModal from '../../components/ressources/ResourceOptionsModal';
 import SmartRefreshOverlay from '../../components/ui/SmartRefreshOverlay';
 import { useAppTheme } from '../../theme/theme';
-import { useGetResourcesQuery, useDeleteResourceMutation } from '../../store/api/resourceApiSlice';
+import { 
+  useGetResourcesQuery, 
+  useDeleteResourceMutation, 
+  useLogDownloadMutation,
+  useGetResourceQuery
+} from '../../store/api/resourceApiSlice';
 
 export default function RessourcesScreen({ navigation }) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
   const listRef = useRef(null);
+  const isFetchingRef = useRef(false);
 
   const [downloads, setDownloads] = useState({});
+  const [localStats, setLocalStats] = useState({});
   const [activeOptionsResource, setActiveOptionsResource] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isSmartRefreshing, setIsSmartRefreshing] = useState(false);
+  
+  const [activeViewId, setActiveViewId] = useState(null);
 
-  const activeIntervals = useRef({});
-  const resetTimeouts = useRef({});
-
-  const {
-    data: resources = [],
-    isLoading,
-    isError,
-    refetch,
-  } = useGetResourcesQuery({ page: 1, limit: 20 });
-
+  const { data: resources = [], isLoading, isError, refetch } = useGetResourcesQuery({ page: 1, limit: 20 });
+  
+  // Declencheur silencieux pour incrementer la vue cote backend
+  useGetResourceQuery(activeViewId, { skip: !activeViewId });
+  
+  const [logDownload] = useLogDownloadMutation();
   const [deleteResource] = useDeleteResourceMutation();
-  const currentUserId = navigation.getState()?.routes?.find(
-    (r) => r.name === 'Main'
-  )?.params?.user?._id;
+
+  const currentUserId = navigation.getState()?.routes?.find((r) => r.name === 'Main')?.params?.user?._id;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -43,16 +50,11 @@ export default function RessourcesScreen({ navigation }) {
   }, [refetch]);
 
   useEffect(() => {
-    return () => {
-      Object.values(activeIntervals.current).forEach(clearInterval);
-      Object.values(resetTimeouts.current).forEach(clearTimeout);
-    };
-  }, []);
-
-  useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('SMART_TAB_PRESS', async (event) => {
       if (event.routeName !== 'Ressources') return;
+      if (isFetchingRef.current) return;
       
+      isFetchingRef.current = true;
       setIsSmartRefreshing(true);
       
       try {
@@ -67,63 +69,106 @@ export default function RessourcesScreen({ navigation }) {
         console.log('Erreur de scroll native (ignoree) :', error);
       }
       
-      await refetch();
-      setIsSmartRefreshing(false);
+      try {
+        await refetch();
+      } finally {
+        setIsSmartRefreshing(false);
+        isFetchingRef.current = false;
+      }
     });
     return () => subscription.remove();
   }, [refetch]);
 
   const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
+    onScroll: (event) => { scrollY.value = event.contentOffset.y; },
   });
 
-  const handleDownloadAction = (resource) => {
-    const currentStatus = downloads[resource.id]?.status;
-
-    if (currentStatus === 'downloading') {
-      clearInterval(activeIntervals.current[resource.id]);
-      setDownloads((prev) => ({
-        ...prev,
-        [resource.id]: { status: 'idle', progress: 0 },
-      }));
-      return;
+  const getOptimisticStats = (id, field, originalValue) => {
+    if (localStats[id] && localStats[id][field] !== undefined) {
+      return localStats[id][field];
     }
+    return originalValue;
+  };
 
-    if (resetTimeouts.current[resource.id]) {
-      clearTimeout(resetTimeouts.current[resource.id]);
-    }
+  const handleViewAction = async (resource) => {
+    const fileUrl = resource.fileUrl || resource.url || resource.tempFilePath;
+    if (!fileUrl) return;
 
-    setDownloads((prev) => ({
+    setLocalStats(prev => ({
       ...prev,
-      [resource.id]: { status: 'downloading', progress: 0 },
+      [resource._id]: { ...prev[resource._id], views: (resource.views || 0) + 1 }
     }));
 
-    let simulatedProgress = 0;
-    activeIntervals.current[resource.id] = setInterval(() => {
-      simulatedProgress += Math.random() * 15 + 5;
+    setActiveViewId(resource._id);
+    
+    try {
+      await WebBrowser.openBrowserAsync(fileUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        toolbarColor: theme.colors.background,
+      });
+    } catch (error) {
+      console.log('Erreur ouverture:', error);
+    }
+  };
 
-      if (simulatedProgress >= 100) {
-        clearInterval(activeIntervals.current[resource.id]);
-        setDownloads((prev) => ({
-          ...prev,
-          [resource.id]: { status: 'success', progress: 100 },
-        }));
+  const handleDownloadAction = async (resource) => {
+    const fileUrl = resource.fileUrl || resource.url || resource.tempFilePath;
+    if (!fileUrl) return;
 
-        resetTimeouts.current[resource.id] = setTimeout(() => {
-          setDownloads((prev) => ({
+    if (downloads[resource._id]?.status === 'downloading') return;
+
+    setDownloads(prev => ({
+      ...prev,
+      [resource._id]: { status: 'downloading', progress: 0 },
+    }));
+
+    try {
+      const fileName = `${resource.title.replace(/[^a-zA-Z0-9]/g, '_')}.${resource.format}`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+      const downloadResumable = FileSystem.createDownloadResumable(
+        fileUrl,
+        fileUri,
+        {},
+        (downloadProgress) => {
+          const progress = (downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite) * 100;
+          setDownloads(prev => ({
             ...prev,
-            [resource.id]: { status: 'idle', progress: 0 },
+            [resource._id]: { status: 'downloading', progress: isNaN(progress) ? 50 : progress },
           }));
-        }, 3000);
-      } else {
-        setDownloads((prev) => ({
+        }
+      );
+
+      const result = await downloadResumable.downloadAsync();
+
+      if (result && result.uri) {
+        setDownloads(prev => ({
           ...prev,
-          [resource.id]: { status: 'downloading', progress: simulatedProgress },
+          [resource._id]: { status: 'success', progress: 100 },
         }));
+
+        setLocalStats(prev => ({
+          ...prev,
+          [resource._id]: { ...prev[resource._id], downloads: (resource.downloads || 0) + 1 }
+        }));
+
+        await logDownload(resource._id).unwrap();
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(result.uri, {
+            mimeType: 'application/octet-stream',
+            dialogTitle: 'Enregistrer ou Partager la ressource',
+          });
+        }
+
+        setTimeout(() => {
+          setDownloads(prev => ({ ...prev, [resource._id]: { status: 'idle', progress: 0 } }));
+        }, 3000);
       }
-    }, 400);
+    } catch (error) {
+      console.log('Erreur telechargement:', error);
+      setDownloads(prev => ({ ...prev, [resource._id]: { status: 'idle', progress: 0 } }));
+    }
   };
 
   const handleOptions = (resource) => {
@@ -135,31 +180,35 @@ export default function RessourcesScreen({ navigation }) {
     try {
       await deleteResource(activeOptionsResource._id).unwrap();
       setActiveOptionsResource(null);
-    } catch (error) {
-      console.log('Erreur suppression:', error);
-    }
+    } catch (error) {}
   };
 
   const isMyResource = activeOptionsResource?.uploadedBy?._id === currentUserId;
 
-  const renderItem = ({ item }) => (
-    <ResourceCard
-      resource={item}
-      downloadState={downloads[item._id]}
-      onDownloadAction={handleDownloadAction}
-      onOptions={handleOptions}
-    />
-  );
+  const renderItem = ({ item }) => {
+    const optimisticResource = {
+      ...item,
+      views: getOptimisticStats(item._id, 'views', item.views),
+      downloads: getOptimisticStats(item._id, 'downloads', item.downloads)
+    };
+
+    return (
+      <ResourceCard
+        resource={optimisticResource}
+        downloadState={downloads[item._id]}
+        onView={handleViewAction}
+        onDownloadAction={handleDownloadAction}
+        onOptions={handleOptions}
+      />
+    );
+  };
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
         {isError ? 'Erreur lors du chargement' : 'Aucune ressource disponible'}
       </Text>
-      <Pressable
-        style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-        onPress={refetch}
-      >
+      <Pressable style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={refetch}>
         <Text style={[styles.retryText, { color: theme.colors.surface }]}>Reessayer</Text>
       </Pressable>
     </View>
@@ -188,13 +237,7 @@ export default function RessourcesScreen({ navigation }) {
           contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
           renderItem={renderItem}
           ListEmptyComponent={renderEmpty}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.colors.primary}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
         />
       )}
 
@@ -203,33 +246,24 @@ export default function RessourcesScreen({ navigation }) {
         resource={activeOptionsResource}
         onClose={() => setActiveOptionsResource(null)}
         isMyResource={isMyResource}
-        onShare={() => {
-          console.log('Partage');
+        onShare={async () => {
+          const fileUrl = activeOptionsResource.fileUrl || activeOptionsResource.url;
+          if (fileUrl && await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileUrl);
+          }
           setActiveOptionsResource(null);
         }}
-        onSave={() => {
-          console.log('Sauvegarde');
-          setActiveOptionsResource(null);
-        }}
+        onSave={() => { setActiveOptionsResource(null); }}
         onDelete={handleDelete}
-        onReport={() => {
-          console.log('Signalement');
-          setActiveOptionsResource(null);
-        }}
+        onReport={() => { setActiveOptionsResource(null); }}
       />
-    </View>
+    </View> 
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 100,
-    paddingHorizontal: 40,
-  },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100, paddingHorizontal: 40 },
   emptyText: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
   retryButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20 },
   retryText: { fontSize: 14, fontWeight: '700' },
