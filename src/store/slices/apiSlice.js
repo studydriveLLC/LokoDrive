@@ -8,7 +8,6 @@ if (!rawBaseUrl && __DEV__) {
   console.warn("ATTENTION: EXPO_PUBLIC_API_URL n'est pas defini dans le fichier .env !");
 }
 
-// Creation de notre moteur de requete avec un systeme de tentatives automatiques
 const staggeredBaseQuery = retry(
   fetchBaseQuery({
     baseUrl: rawBaseUrl,
@@ -31,10 +30,9 @@ const staggeredBaseQuery = retry(
       return headers;
     },
   }),
-  { maxRetries: 3 } // Si le reseau coupe, on retente jusqu'a 3 fois silencieusement
+  { maxRetries: 3 }
 );
 
-// Verrous pour gerer les appels concurrents au rafraichissement
 let isRefreshing = false;
 let refreshSubscribers = [];
 
@@ -48,7 +46,6 @@ const onRefreshed = (token) => {
 };
 
 const baseQueryWithReauth = async (args, api, extraOptions) => {
-  // On utilise notre nouveau moteur avec retry ici
   let result = await staggeredBaseQuery(args, api, extraOptions);
 
   if (result.error && result.error.status === 401) {
@@ -56,7 +53,6 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
       isRefreshing = true;
       api.dispatch(setTokenRefreshing(true));
 
-      // On tente de rafraichir. Le cookie httpOnly est envoye automatiquement.
       const refreshResult = await staggeredBaseQuery(
         { url: '/v1/auth/refresh', method: 'POST' },
         api,
@@ -74,24 +70,24 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
         onRefreshed(newToken);
         api.dispatch(setTokenRefreshing(false));
 
-        // Rejouer la requete initiale echouee avec le nouveau token
         result = await staggeredBaseQuery(args, api, extraOptions);
       } else {
-        // Le refresh token est mort ou invalide, deconnexion totale
         isRefreshing = false;
         api.dispatch(setTokenRefreshing(false));
         api.dispatch(logout());
         await deleteToken('accessToken');
         await deleteToken('userData');
+        
+        // CORRECTION CRITIQUE : On envoie un signal vide pour liberer toutes les requetes en attente
+        onRefreshed(null); 
       }
     } else {
-      // Une autre requete a deja lance le refresh, on met celle-ci en pause
       await new Promise((resolve) => {
-        subscribeTokenRefresh(() => {
-          resolve();
+        subscribeTokenRefresh((newToken) => {
+          resolve(newToken);
         });
       });
-      // Une fois le refresh fini, on rejoue
+      
       result = await staggeredBaseQuery(args, api, extraOptions);
     }
   }

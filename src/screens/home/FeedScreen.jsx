@@ -106,10 +106,18 @@ export default function FeedScreen({ navigation }) {
       isFetchingRef.current = true;
       setIsSmartRefreshing(true);
       
+      // SECURITE : Minuteur de secours pour eviter un blocage definitif de l'interface
+      let isTimeout = false;
+      const safetyTimer = setTimeout(() => {
+        isTimeout = true;
+        setIsSmartRefreshing(false);
+        isFetchingRef.current = false;
+      }, 8000); 
+      
       try {
         await refetch();
         
-        if (listRef.current) {
+        if (listRef.current && !isTimeout) {
           if (typeof listRef.current.scrollToOffset === 'function') {
             listRef.current.scrollToOffset({ offset: 0, animated: false });
           } else if (listRef.current.getNode && typeof listRef.current.getNode().scrollToOffset === 'function') {
@@ -119,8 +127,11 @@ export default function FeedScreen({ navigation }) {
       } catch (error) {
         console.log('Erreur silencieuse lors du rafraichissement', error);
       } finally {
-        setIsSmartRefreshing(false);
-        isFetchingRef.current = false;
+        clearTimeout(safetyTimer);
+        if (!isTimeout) {
+          setIsSmartRefreshing(false);
+          isFetchingRef.current = false;
+        }
       }
     });
     return () => subscription.remove();
@@ -145,10 +156,7 @@ export default function FeedScreen({ navigation }) {
           data={[1, 2, 3]}
           keyExtractor={(item) => item.toString()}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingTop: 140 + insets.top,
-            paddingBottom: 100,
-          }}
+          contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
           renderItem={() => <SkeletonPostCard />}
         />
       );
@@ -189,16 +197,9 @@ export default function FeedScreen({ navigation }) {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.colors.primary}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
         }
-        contentContainerStyle={{
-          paddingTop: 140 + insets.top,
-          paddingBottom: 100,
-        }}
+        contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
         renderItem={({ item }) => (
           <PostCard
             post={item}

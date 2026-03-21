@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Share2, AlertTriangle, Trash2, Bookmark } from 'lucide-react-native';
+import { Share2, AlertTriangle, Trash2, Bookmark, Edit2 } from 'lucide-react-native';
 import BottomSheet from '../ui/BottomSheet';
 import { useAppTheme } from '../../theme/theme';
 
@@ -13,6 +13,7 @@ export default function ResourceOptionsModal({
   onSave,
   onDelete,
   onReport,
+  onEdit,
 }) {
   const theme = useAppTheme();
   if (!resource) return null;
@@ -68,12 +69,19 @@ export default function ResourceOptionsModal({
         )}
 
         {isMyResource ? (
-          renderOption(
-            <Trash2 color={theme.colors.error} size={20} />,
-            'Supprimer le fichier',
-            onDelete,
-            true
-          )
+          <>
+            {renderOption(
+              <Edit2 color={theme.colors.primaryDark} size={20} />,
+              'Modifier le fichier',
+              onEdit
+            )}
+            {renderOption(
+              <Trash2 color={theme.colors.error} size={20} />,
+              'Supprimer le fichier',
+              onDelete,
+              true
+            )}
+          </>
         ) : (
           renderOption(
             <AlertTriangle color={theme.colors.error} size={20} />,

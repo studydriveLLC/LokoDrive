@@ -3,19 +3,23 @@ import { View, Text, StyleSheet, Pressable, DeviceEventEmitter, RefreshControl }
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import AnimatedHeader from '../../components/navigation/AnimatedHeader';
 import SkeletonResourceCard from '../../components/ressources/SkeletonResourceCard';
 import ResourceCard from '../../components/ressources/ResourceCard';
 import ResourceOptionsModal from '../../components/ressources/ResourceOptionsModal';
+import DocumentViewerModal from '../../components/ressources/DocumentViewerModal';
 import SmartRefreshOverlay from '../../components/ui/SmartRefreshOverlay';
 import { useAppTheme } from '../../theme/theme';
 import { 
   useGetResourcesQuery, 
   useDeleteResourceMutation, 
   useLogDownloadMutation,
-  useGetResourceQuery
+  useGetResourceQuery,
+  useToggleFavoriteMutation,
+  useReportResourceMutation
 } from '../../store/api/resourceApiSlice';
 
 export default function RessourcesScreen({ navigation }) {
@@ -28,18 +32,18 @@ export default function RessourcesScreen({ navigation }) {
   const [downloads, setDownloads] = useState({});
   const [localStats, setLocalStats] = useState({});
   const [activeOptionsResource, setActiveOptionsResource] = useState(null);
+  const [activeDocumentUrl, setActiveDocumentUrl] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isSmartRefreshing, setIsSmartRefreshing] = useState(false);
-  
   const [activeViewId, setActiveViewId] = useState(null);
 
   const { data: resources = [], isLoading, isError, refetch } = useGetResourcesQuery({ page: 1, limit: 20 });
-  
-  // Declencheur silencieux pour incrementer la vue cote backend
   useGetResourceQuery(activeViewId, { skip: !activeViewId });
   
   const [logDownload] = useLogDownloadMutation();
   const [deleteResource] = useDeleteResourceMutation();
+  const [toggleFavorite] = useToggleFavoriteMutation();
+  const [reportResource] = useReportResourceMutation();
 
   const currentUserId = navigation.getState()?.routes?.find((r) => r.name === 'Main')?.params?.user?._id;
 
@@ -57,12 +61,16 @@ export default function RessourcesScreen({ navigation }) {
       isFetchingRef.current = true;
       setIsSmartRefreshing(true);
       
+      let isTimeout = false;
+      const safetyTimer = setTimeout(() => {
+        isTimeout = true;
+        setIsSmartRefreshing(false);
+        isFetchingRef.current = false;
+      }, 8000);
+      
       try {
-        // 1. On attend que les donnees soient recuperees (avec retry automatique en fond)
         await refetch();
-        
-        // 2. Seulement apres le succes, on remonte l'ecran silencieusement
-        if (listRef.current) {
+        if (listRef.current && !isTimeout) {
           if (typeof listRef.current.scrollToOffset === 'function') {
             listRef.current.scrollToOffset({ offset: 0, animated: false });
           } else if (listRef.current.getNode && typeof listRef.current.getNode().scrollToOffset === 'function') {
@@ -70,11 +78,13 @@ export default function RessourcesScreen({ navigation }) {
           }
         }
       } catch (error) {
-        console.log('Erreur silencieuse lors du rafraichissement des ressources', error);
+        console.log('Erreur silencieuse', error);
       } finally {
-        // 3. On coupe l'overlay
-        setIsSmartRefreshing(false);
-        isFetchingRef.current = false;
+        clearTimeout(safetyTimer);
+        if (!isTimeout) {
+          setIsSmartRefreshing(false);
+          isFetchingRef.current = false;
+        }
       }
     });
     return () => subscription.remove();
@@ -85,9 +95,7 @@ export default function RessourcesScreen({ navigation }) {
   });
 
   const getOptimisticStats = (id, field, originalValue) => {
-    if (localStats[id] && localStats[id][field] !== undefined) {
-      return localStats[id][field];
-    }
+    if (localStats[id] && localStats[id][field] !== undefined) return localStats[id][field];
     return originalValue;
   };
 
@@ -99,35 +107,37 @@ export default function RessourcesScreen({ navigation }) {
       ...prev,
       [resource._id]: { ...prev[resource._id], views: (resource.views || 0) + 1 }
     }));
-
     setActiveViewId(resource._id);
-    
-    try {
-      await WebBrowser.openBrowserAsync(fileUrl, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-        toolbarColor: theme.colors.background,
-      });
-    } catch (error) {
-      console.log('Erreur ouverture:', error);
+
+    const format = resource.format?.toLowerCase();
+    const docFormats = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
+
+    if (docFormats.includes(format)) {
+      setActiveDocumentUrl(fileUrl);
+    } else {
+      try {
+        await WebBrowser.openBrowserAsync(fileUrl, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+          toolbarColor: theme.colors.background,
+        });
+      } catch (error) {
+        console.log('Erreur ouverture:', error);
+      }
     }
   };
 
   const handleDownloadAction = async (resource) => {
     const fileUrl = resource.fileUrl || resource.url || resource.tempFilePath;
     if (!fileUrl) return;
-
     if (downloads[resource._id]?.status === 'downloading') return;
 
-    setDownloads(prev => ({
-      ...prev,
-      [resource._id]: { status: 'downloading', progress: 0 },
-    }));
+    setDownloads(prev => ({ ...prev, [resource._id]: { status: 'downloading', progress: 0 } }));
 
     try {
       const fileName = `${resource.title.replace(/[^a-zA-Z0-9]/g, '_')}.${resource.format}`;
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
-      const downloadResumable = FileSystem.createDownloadResumable(
+      const downloadResumable = FileSystemLegacy.createDownloadResumable(
         fileUrl,
         fileUri,
         {},
@@ -143,25 +153,19 @@ export default function RessourcesScreen({ navigation }) {
       const result = await downloadResumable.downloadAsync();
 
       if (result && result.uri) {
-        setDownloads(prev => ({
-          ...prev,
-          [resource._id]: { status: 'success', progress: 100 },
-        }));
-
+        setDownloads(prev => ({ ...prev, [resource._id]: { status: 'success', progress: 100 } }));
         setLocalStats(prev => ({
           ...prev,
           [resource._id]: { ...prev[resource._id], downloads: (resource.downloads || 0) + 1 }
         }));
-
         await logDownload(resource._id).unwrap();
 
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(result.uri, {
             mimeType: 'application/octet-stream',
-            dialogTitle: 'Enregistrer ou Partager la ressource',
+            dialogTitle: 'Enregistrer ou Partager',
           });
         }
-
         setTimeout(() => {
           setDownloads(prev => ({ ...prev, [resource._id]: { status: 'idle', progress: 0 } }));
         }, 3000);
@@ -171,20 +175,6 @@ export default function RessourcesScreen({ navigation }) {
       setDownloads(prev => ({ ...prev, [resource._id]: { status: 'idle', progress: 0 } }));
     }
   };
-
-  const handleOptions = (resource) => {
-    setActiveOptionsResource(resource);
-  };
-
-  const handleDelete = async () => {
-    if (!activeOptionsResource) return;
-    try {
-      await deleteResource(activeOptionsResource._id).unwrap();
-      setActiveOptionsResource(null);
-    } catch (error) {}
-  };
-
-  const isMyResource = activeOptionsResource?.uploadedBy?._id === currentUserId;
 
   const renderItem = ({ item }) => {
     const optimisticResource = {
@@ -199,21 +189,10 @@ export default function RessourcesScreen({ navigation }) {
         downloadState={downloads[item._id]}
         onView={handleViewAction}
         onDownloadAction={handleDownloadAction}
-        onOptions={handleOptions}
+        onOptions={setActiveOptionsResource}
       />
     );
   };
-
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
-        {isError ? 'Erreur lors du chargement' : 'Aucune ressource disponible'}
-      </Text>
-      <Pressable style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={refetch}>
-        <Text style={[styles.retryText, { color: theme.colors.surface }]}>Reessayer</Text>
-      </Pressable>
-    </View>
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -237,7 +216,16 @@ export default function RessourcesScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
           renderItem={renderItem}
-          ListEmptyComponent={renderEmpty}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
+                {isError ? 'Erreur lors du chargement' : 'Aucune ressource disponible'}
+              </Text>
+              <Pressable style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={refetch}>
+                <Text style={[styles.retryText, { color: theme.colors.surface }]}>Reessayer</Text>
+              </Pressable>
+            </View>
+          )}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
         />
       )}
@@ -246,17 +234,34 @@ export default function RessourcesScreen({ navigation }) {
         visible={!!activeOptionsResource}
         resource={activeOptionsResource}
         onClose={() => setActiveOptionsResource(null)}
-        isMyResource={isMyResource}
+        isMyResource={activeOptionsResource?.uploadedBy?._id === currentUserId}
         onShare={async () => {
-          const fileUrl = activeOptionsResource.fileUrl || activeOptionsResource.url;
-          if (fileUrl && await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(fileUrl);
-          }
+          const url = activeOptionsResource.fileUrl || activeOptionsResource.url;
+          if (url && await Sharing.isAvailableAsync()) await Sharing.shareAsync(url);
           setActiveOptionsResource(null);
         }}
-        onSave={() => { setActiveOptionsResource(null); }}
-        onDelete={handleDelete}
-        onReport={() => { setActiveOptionsResource(null); }}
+        onSave={async () => {
+          try { await toggleFavorite(activeOptionsResource._id).unwrap(); } catch (e) {}
+          setActiveOptionsResource(null);
+        }}
+        onEdit={() => {
+          console.log('Anticipation: Redirection vers MenuScreen pour edition', activeOptionsResource._id);
+          setActiveOptionsResource(null);
+        }}
+        onDelete={async () => {
+          try { await deleteResource(activeOptionsResource._id).unwrap(); } catch (e) {}
+          setActiveOptionsResource(null);
+        }}
+        onReport={async () => {
+          try { await reportResource(activeOptionsResource._id).unwrap(); } catch (e) {}
+          setActiveOptionsResource(null);
+        }}
+      />
+
+      <DocumentViewerModal
+        visible={!!activeDocumentUrl}
+        onClose={() => setActiveDocumentUrl(null)}
+        resourceUrl={activeDocumentUrl}
       />
     </View> 
   );

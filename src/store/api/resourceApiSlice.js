@@ -1,4 +1,5 @@
 import { apiSlice } from '../slices/apiSlice';
+import socketService from '../../services/socketService';
 
 export const resourceApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -16,8 +17,6 @@ export const resourceApiSlice = apiSlice.injectEndpoints({
       transformResponse: (response) => {
         return response.data?.resources || [];
       },
-      // RESILIENCE RESEAU : Garde en cache frontend pendant 5 minutes.
-      // Évite les rechargements inutiles si le réseau vacille.
       keepUnusedDataFor: 300, 
       providesTags: (result) =>
         result
@@ -26,13 +25,35 @@ export const resourceApiSlice = apiSlice.injectEndpoints({
               { type: 'Resource', id: 'LIST' }
             ]
           : [{ type: 'Resource', id: 'LIST' }],
+          
+      async onCacheEntryAdded(arg, { updateCachedData, cacheDataLoaded, cacheEntryRemoved }) {
+        try {
+          await cacheDataLoaded;
+          const socket = await socketService.connect();
+          
+          const handleNewResource = (newResource) => {
+            updateCachedData((draft) => {
+              draft.unshift(newResource);
+            });
+          };
+          
+          socket.on('new_resource', handleNewResource);
+          
+          await cacheEntryRemoved;
+          socket.off('new_resource', handleNewResource);
+        } catch (error) {
+          console.log('Erreur synchronisation socket ressources', error);
+        }
+      }
     }),
+    
     getResource: builder.query({
       query: (id) => ({ url: `/v1/resources/${id}` }),
       transformResponse: (response) => response.data?.resource,
       keepUnusedDataFor: 300,
       providesTags: (result, error, id) => [{ type: 'Resource', id }],
     }),
+    
     uploadResource: builder.mutation({
       queryFn: async (formData, { getState }) => {
         const headers = {};
@@ -57,15 +78,34 @@ export const resourceApiSlice = apiSlice.injectEndpoints({
           return { error: { status: 'FETCH_ERROR', error: error.message } };
         }
       },
-      invalidatesTags: [{ type: 'Resource', id: 'LIST' }],
+      invalidatesTags: [], 
     }),
+    
     logDownload: builder.mutation({
       query: (id) => ({ url: `/v1/resources/${id}/download`, method: 'POST' }),
       transformResponse: (response) => response.data,
     }),
+    
     deleteResource: builder.mutation({
       query: (id) => ({ url: `/v1/resources/${id}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Resource', id: 'LIST' }],
+    }),
+    
+    updateResource: builder.mutation({
+      query: ({ id, ...patch }) => ({
+        url: `/v1/resources/${id}`,
+        method: 'PUT',
+        body: patch,
+      }),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Resource', id }, { type: 'Resource', id: 'LIST' }],
+    }),
+    
+    toggleFavorite: builder.mutation({
+      query: (id) => ({ url: `/v1/resources/${id}/favorite`, method: 'POST' }),
+    }),
+    
+    reportResource: builder.mutation({
+      query: (id) => ({ url: `/v1/resources/${id}/report`, method: 'POST' }),
     }),
   }),
   overrideExisting: true,
@@ -77,4 +117,7 @@ export const {
   useUploadResourceMutation,
   useLogDownloadMutation,
   useDeleteResourceMutation,
+  useUpdateResourceMutation,
+  useToggleFavoriteMutation,
+  useReportResourceMutation,
 } = resourceApiSlice;
