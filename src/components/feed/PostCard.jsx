@@ -5,40 +5,50 @@ import PostContent from './PostContent';
 import PostActions from './PostActions';
 import { useAppTheme } from '../../theme/theme';
 
-export default function PostCard({ post, onOpenComments, onOpenDescription, onOpenShare, onOpenOptions }) {
+export default function PostCard({
+  post,
+  currentUserId,
+  onOpenComments,
+  onOpenDescription,
+  onOpenShare,
+  onOpenOptions,
+  onLike,
+  onDelete,
+}) {
   const theme = useAppTheme();
-  
+
   return (
     <View style={[
-      styles.card, 
-      { 
-        backgroundColor: theme.colors.surface, 
+      styles.card,
+      {
+        backgroundColor: theme.colors.surface,
         borderColor: theme.colors.border,
       }
     ]}>
       <View style={styles.internalPadding}>
-        <PostHeader 
-          author={post.author} 
-          date={post.date} 
-          description={post.description} 
-          onReadMore={() => onOpenDescription(post)}
-          onOptionsPress={() => onOpenOptions(post)}
+        <PostHeader
+          author={post.author}
+          date={post.date}
+          description={post.description}
+          onReadMore={() => onOpenDescription && onOpenDescription(post)}
+          onOptionsPress={() => onOpenOptions && onOpenOptions(post)}
         />
       </View>
 
-      <PostContent 
-        media={post.media} 
-        onPress={() => console.log("Ouvrir le visualiseur de media plein ecran")} 
+      <PostContent
+        media={post.media}
+        onPress={() => console.log("Ouvrir le visualiseur de media plein ecran")}
       />
 
       <View style={styles.internalPadding}>
-        <PostActions 
+        <PostActions
           likesCount={post.likes}
           commentsCount={post.comments}
           sharesCount={post.shares}
           isLikedByMe={post.isLikedByMe}
-          onCommentPress={() => onOpenComments(post)}
-          onSharePress={() => onOpenShare(post)}
+          onCommentPress={() => onOpenComments && onOpenComments(post)}
+          onSharePress={() => onOpenShare && onOpenShare(post)}
+          onLikePress={() => onLike && onLike(post._id)}
         />
       </View>
     </View>
