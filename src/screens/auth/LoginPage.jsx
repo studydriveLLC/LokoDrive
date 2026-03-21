@@ -56,7 +56,7 @@ export default function LoginPage({ navigation }) {
     >
       <View style={styles.formContainer}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.primary }]}>StudyDrive</Text>
+          <Text style={[styles.title, { color: theme.colors.primary }]}>LokoDrive</Text>
           <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
             Connectez-vous pour accéder au campus.
           </Text>

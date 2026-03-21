@@ -155,7 +155,7 @@ export default function RegisterPage({ navigation }) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.primary }]}>Rejoindre StudyDrive</Text>
+            <Text style={[styles.title, { color: theme.colors.primary }]}>Rejoindre LokoDrive</Text>
             <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
               Créez votre compte étudiant pour accéder au campus.
             </Text>

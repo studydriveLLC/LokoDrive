@@ -27,7 +27,7 @@ export default function CustomDrawerContent(props) {
           <User color={theme.colors.surface} size={36} strokeWidth={2} />
         </View>
         <Text style={[styles.pseudo, { color: theme.colors.text }]}>{user.pseudo}</Text>
-        <Text style={[styles.role, { color: theme.colors.textMuted }]}>Membre StudyDrive</Text>
+        <Text style={[styles.role, { color: theme.colors.textMuted }]}>Membre LokoDrive</Text>
       </View>
 
       <View style={styles.menuContainer}>

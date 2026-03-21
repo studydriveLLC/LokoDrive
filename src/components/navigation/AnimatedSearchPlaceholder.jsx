@@ -6,7 +6,7 @@ import { useAppTheme } from '../../theme/theme';
 const SEARCH_SUGGESTIONS = [
   "Rechercher des sujets...",
   "Trouver des membres...",
-  "Explorer StudyDrive...",
+  "Explorer LokoDrive...",
   "Chercher des ressources..."
 ];
 

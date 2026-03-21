@@ -1,50 +1,76 @@
 import { apiSlice } from '../slices/apiSlice';
-import { getToken } from '../secureStoreAdapter';
-
-const rawBaseUrl = process.env.EXPO_PUBLIC_API_URL;
 
 export const resourceApiSlice = apiSlice.injectEndpoints({
-endpoints: (builder) => ({
-uploadResource: builder.mutation({
-queryFn: async (formData, { getState }) => {
-// Preparation des headers
-const headers = {};
-
-// Recupere le token depuis Redux ou SecureStore
-let token = getState().auth?.token;
-if (!token) {
-token = await getToken('accessToken');
-}
-if (token) {
-headers['Authorization'] = `Bearer ${token}`;
-}
-
-// Pour FormData, on n'ajoute PAS Content-Type
-// React Native/ fetch va ajouter multipart/form-data avec le boundary automatique
-
-const fullUrl = `${rawBaseUrl}/v1/resources`;
-
-try {
-const response = await fetch(fullUrl, {
-method: 'POST',
-body: formData,
-headers,
+  endpoints: (builder) => ({
+    getResources: builder.query({
+      query: ({ page = 1, limit = 10, category, level, search, sort } = {}) => {
+        const params = new URLSearchParams();
+        params.append('page', page);
+        params.append('limit', limit);
+        if (category) params.append('category', category);
+        if (level) params.append('level', level);
+        if (search) params.append('search', search);
+        if (sort) params.append('sort', sort);
+        return { url: `/v1/resources?${params.toString()}` };
+      },
+      transformResponse: (response) => {
+        return response.data?.resources || [];
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map(({ _id }) => ({ type: 'Resource', id: _id })),
+              { type: 'Resource', id: 'LIST' }
+            ]
+          : [{ type: 'Resource', id: 'LIST' }],
+    }),
+    getResource: builder.query({
+      query: (id) => ({ url: `/v1/resources/${id}` }),
+      transformResponse: (response) => response.data?.resource,
+      providesTags: (result, error, id) => [{ type: 'Resource', id }],
+    }),
+    uploadResource: builder.mutation({
+      queryFn: async (formData, { getState }) => {
+        const headers = {};
+        let token = getState().auth?.token;
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        const rawBaseUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+        const fullUrl = `${rawBaseUrl}/v1/resources`;
+        try {
+          const response = await fetch(fullUrl, {
+            method: 'POST',
+            body: formData,
+            headers,
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            return { error: { status: response.status, data } };
+          }
+          return { data };
+        } catch (error) {
+          return { error: { status: 'FETCH_ERROR', error: error.message } };
+        }
+      },
+      invalidatesTags: [{ type: 'Resource', id: 'LIST' }],
+    }),
+    logDownload: builder.mutation({
+      query: (id) => ({ url: `/v1/resources/${id}/download`, method: 'POST' }),
+      transformResponse: (response) => response.data,
+    }),
+    deleteResource: builder.mutation({
+      query: (id) => ({ url: `/v1/resources/${id}`, method: 'DELETE' }),
+      invalidatesTags: [{ type: 'Resource', id: 'LIST' }],
+    }),
+  }),
+  overrideExisting: true,
 });
 
-const data = await response.json();
-
-if (!response.ok) {
-return { error: { status: response.status, data } };
-}
-
-return { data };
-} catch (error) {
-return { error: { status: 'FETCH_ERROR', error: error.message } };
-}
-},
-}),
-}),
-overrideExisting: true,
-});
-
-export const { useUploadResourceMutation } = resourceApiSlice;
+export const {
+  useGetResourcesQuery,
+  useGetResourceQuery,
+  useUploadResourceMutation,
+  useLogDownloadMutation,
+  useDeleteResourceMutation,
+} = resourceApiSlice;
