@@ -1,5 +1,7 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Dimensions, Keyboard, Platform } from 'react-native';
+// IMPORT CRITIQUE : Permet au clic de passer a travers le GestureDetector
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -124,9 +126,14 @@ export default function BottomSheet({ isVisible, onClose, children, footer }) {
         >
           <View style={styles.header}>
             <View style={[styles.dragHandle, { backgroundColor: theme.colors.border }]} />
-            <Pressable onPress={handleClose} style={styles.closeButton} hitSlop={15}>
+            <TouchableOpacity 
+              onPress={handleClose} 
+              style={styles.closeButton} 
+              hitSlop={{ top: 25, bottom: 25, left: 25, right: 25 }} // Enorme zone de clic
+              activeOpacity={0.5}
+            >
               <X color={theme.colors.text} size={24} />
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           <Animated.ScrollView
@@ -169,9 +176,9 @@ const styles = StyleSheet.create({
     elevation: 10,
     overflow: 'hidden',
   },
-  header: { height: 40, alignItems: 'center', justifyContent: 'center' },
-  dragHandle: { width: 40, height: 5, borderRadius: 3, marginTop: 10 },
-  closeButton: { position: 'absolute', right: 20, top: 10 },
+  header: { height: 50, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+  dragHandle: { width: 40, height: 5, borderRadius: 3, marginTop: 5 },
+  closeButton: { position: 'absolute', right: 20, top: 10, zIndex: 100, padding: 5 },
   scrollContent: { paddingBottom: 20 },
   footerContainer: {
     borderTopWidth: 1,

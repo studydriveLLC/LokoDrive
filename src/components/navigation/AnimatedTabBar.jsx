@@ -78,15 +78,18 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
           }
 
           const onPress = () => {
+            // Emettre l'evenement natif en PRIORITE
+            const event = navigation.emit({ 
+              type: 'tabPress', 
+              target: route.key, 
+              canPreventDefault: true 
+            });
+
             if (isFocused) {
-              // Logique stricte : Si deja sur la page, on emet uniquement l'action intelligente
+              // Rafraichissement intelligent
               DeviceEventEmitter.emit('SMART_TAB_PRESS', { routeName: route.name });
-            } else {
-              // Changement de page classique laisse a React Navigation
-              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!event.defaultPrevented) {
-                navigation.navigate(route.name);
-              }
+            } else if (!event.defaultPrevented) {
+              navigation.navigate(route.name);
             }
           };
 

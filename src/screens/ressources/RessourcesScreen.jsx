@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, DeviceEventEmitter, RefreshControl } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScrollToTop } from '@react-navigation/native'; // AJOUT CRITIQUE ICI
 import AnimatedHeader from '../../components/navigation/AnimatedHeader';
 import SkeletonResourceCard from '../../components/ressources/SkeletonResourceCard';
 import ResourceCard from '../../components/ressources/ResourceCard';
@@ -14,6 +15,9 @@ export default function RessourcesScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
   const listRef = useRef(null);
+
+  // LA SOLUTION INFALLIBLE DE REACT NAVIGATION POUR SCROLL TO TOP :
+  useScrollToTop(listRef);
 
   const [downloads, setDownloads] = useState({});
   const [activeOptionsResource, setActiveOptionsResource] = useState(null);
@@ -34,12 +38,6 @@ export default function RessourcesScreen({ navigation }) {
     (r) => r.name === 'Main'
   )?.params?.user?._id;
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
-
   useEffect(() => {
     return () => {
       Object.values(activeIntervals.current).forEach(clearInterval);
@@ -50,21 +48,18 @@ export default function RessourcesScreen({ navigation }) {
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('SMART_TAB_PRESS', (event) => {
       if (event.routeName !== 'Ressources') return;
-      
-      // 1. Scroll sécurisé (compatible avec toutes les versions de Reanimated)
-      if (listRef.current) {
-        if (typeof listRef.current.scrollToOffset === 'function') {
-          listRef.current.scrollToOffset({ offset: 0, animated: true });
-        } else if (listRef.current.getNode && typeof listRef.current.getNode().scrollToOffset === 'function') {
-          listRef.current.getNode().scrollToOffset({ offset: 0, animated: true });
-        }
-      }
-      
-      // 2. Feedback visuel de rafraîchissement
+      // Le scroll to top est desormais gere automatiquement
+      // Ici, on declenche uniquement le feedback visuel de rafraichissement
       onRefresh();
     });
     return () => subscription.remove();
   }, [refetch]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
