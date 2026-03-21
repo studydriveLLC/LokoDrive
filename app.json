@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "StudyDrive",
-    "slug": "studydrive",
+    "name": "LokoDrive",
+    "slug": "lokodrive",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.studydrive.app",
+      "bundleIdentifier": "com.lokodrive.app",
       "userInterfaceStyle": "automatic"
     },
     "android": {
@@ -21,7 +21,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.studydrive.app",
+      "package": "com.lokodrive.app",
       "userInterfaceStyle": "automatic",
       "softwareKeyboardLayoutMode": "resize"
     },

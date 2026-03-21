@@ -92,7 +92,7 @@ export default function LandingPage() {
             entering={FadeInDown.duration(1200).delay(300)} 
             style={styles.brandContainer}
           >
-            <Text style={[styles.title, { color: theme.colors.primary }]}>StudyDrive</Text>
+            <Text style={[styles.title, { color: theme.colors.primary }]}>LokoDrive</Text>
             <Text style={[styles.subtitle, { color: theme.colors.text }]}>
               La plateforme ultime pour unifier la communauté estudiantine.
             </Text>
@@ -100,7 +100,7 @@ export default function LandingPage() {
 
           <Animated.View entering={FadeInDown.duration(1200).delay(500)} style={styles.descriptionContainer}>
             <Text style={[styles.description, { color: theme.colors.textMuted }]}>
-              Né d'une volonté de centraliser l'entraide, StudyDrive n'est pas qu'une simple application. 
+              Né d'une volonté de centraliser l'entraide, LokoDrive n'est pas qu'une simple application. 
               C'est un espace collaboratif pensé par des étudiants, pour des étudiants. 
               Partagez vos ressources, interagissez et évoluez ensemble.
             </Text>
@@ -152,7 +152,7 @@ export default function LandingPage() {
           </View>
           
           <Text style={[styles.copyright, { color: theme.colors.textDisabled }]}>
-            © {currentYear} StudyDrive. Tous droits réservés.
+            © {currentYear} LokoDrive. Tous droits réservés.
           </Text>
         </Animated.View>
 
