@@ -110,9 +110,9 @@ export default function RessourcesScreen({ navigation }) {
     setActiveViewId(resource._id);
 
     const format = resource.format?.toLowerCase();
-    const docFormats = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
+    const supportedFormats = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg'];
 
-    if (docFormats.includes(format)) {
+    if (supportedFormats.includes(format)) {
       setActiveDocumentUrl(fileUrl);
     } else {
       try {
@@ -135,7 +135,7 @@ export default function RessourcesScreen({ navigation }) {
 
     try {
       const fileName = `${resource.title.replace(/[^a-zA-Z0-9]/g, '_')}.${resource.format}`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      const fileUri = FileSystem.documentDirectory + fileName;
 
       const downloadResumable = FileSystemLegacy.createDownloadResumable(
         fileUrl,
@@ -245,7 +245,6 @@ export default function RessourcesScreen({ navigation }) {
           setActiveOptionsResource(null);
         }}
         onEdit={() => {
-          console.log('Anticipation: Redirection vers MenuScreen pour edition', activeOptionsResource._id);
           setActiveOptionsResource(null);
         }}
         onDelete={async () => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import BottomSheet from '../ui/BottomSheet';
 import { useAppTheme } from '../../theme/theme';
@@ -9,21 +9,31 @@ export default function DocumentViewerModal({ visible, onClose, resourceUrl }) {
   
   if (!resourceUrl) return null;
 
-  const viewerUrl = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(resourceUrl)}`;
+  const isImage = resourceUrl.match(/\.(jpeg|jpg|png|gif)$/i) || resourceUrl.includes('image');
+  const viewerUrl = isImage ? resourceUrl : `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(resourceUrl)}`;
 
   return (
     <BottomSheet isVisible={visible} onClose={onClose}>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <WebView
-          source={{ uri: viewerUrl }}
-          style={styles.webview}
-          startInLoadingState={true}
-          renderLoading={() => (
-            <View style={styles.loader}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
-          )}
-        />
+        {isImage ? (
+          <Image 
+            source={{ uri: viewerUrl }} 
+            style={styles.imageViewer} 
+            resizeMode="contain" 
+          />
+        ) : (
+          <WebView
+            source={{ uri: viewerUrl }}
+            style={styles.webview}
+            startInLoadingState={true}
+            originWhitelist={['*']}
+            renderLoading={() => (
+              <View style={styles.loader}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+              </View>
+            )}
+          />
+        )}
       </View>
     </BottomSheet>
   );
@@ -39,6 +49,11 @@ const styles = StyleSheet.create({
   },
   webview: { 
     flex: 1 
+  },
+  imageViewer: {
+    flex: 1,
+    width: '100%',
+    height: '100%'
   },
   loader: { 
     position: 'absolute', 

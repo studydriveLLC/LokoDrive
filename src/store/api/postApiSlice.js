@@ -19,6 +19,20 @@ export const postApiSlice = apiSlice.injectEndpoints({
         method: 'POST',
         body: postData,
       }),
+      async onQueryStarted(postData, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            postApiSlice.util.updateQueryData('getFeed', undefined, (draft) => {
+              if (data && data.data && data.data.post) {
+                draft.unshift(data.data.post);
+              }
+            })
+          );
+        } catch (error) {
+          console.log('Erreur silencieuse creation post:', error);
+        }
+      },
       invalidatesTags: ['Post'],
     }),
 
