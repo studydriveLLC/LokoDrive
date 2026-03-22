@@ -7,7 +7,6 @@ import BottomSheet from '../ui/BottomSheet';
 import { useAppTheme } from '../../theme/theme';
 import { useUploadResourceMutation } from '../../store/api/resourceApiSlice';
 
-const CATEGORIES = ['Microbiologie', 'Biochimie', 'Qualite', 'Laboratoire'];
 const LEVELS = ['BTS 1', 'BTS 2', 'Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2'];
 
 const getMimeType = (fileName, fallbackMime) => {
@@ -33,8 +32,8 @@ export default function UploadResourceModal({ visible, onClose }) {
 
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [level, setLevel] = useState(LEVELS[0]);
+  const [category, setCategory] = useState('');
+  const [level, setLevel] = useState(null);
   
   const [isUploadSuccess, setIsUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -94,14 +93,14 @@ export default function UploadResourceModal({ visible, onClose }) {
   };
 
   const handleUpload = async () => {
-    if (!file || !title.trim()) return;
+    if (!file || !title.trim() || !category.trim() || !level) return;
 
     setIsUploadSuccess(false);
     setUploadError('');
 
     const formData = new FormData();
     formData.append('title', title.trim());
-    formData.append('category', category);
+    formData.append('category', category.trim());
     formData.append('level', level);
     
     formData.append('file', {
@@ -117,6 +116,8 @@ export default function UploadResourceModal({ visible, onClose }) {
       setTimeout(() => {
         setFile(null);
         setTitle('');
+        setCategory('');
+        setLevel(null);
         setIsUploadSuccess(false);
         onClose();
       }, 1500);
@@ -133,7 +134,7 @@ export default function UploadResourceModal({ visible, onClose }) {
     opacity: isLoading ? 0.3 : 0
   }));
 
-  const isFormValid = file && title.trim().length > 3;
+  const isFormValid = file && title.trim().length > 3 && category.trim().length >= 2 && level !== null;
 
   const renderFooter = () => (
     <View style={[styles.footer, { backgroundColor: theme.colors.background, borderTopColor: theme.colors.divider }]}>
@@ -202,6 +203,18 @@ export default function UploadResourceModal({ visible, onClose }) {
         </View>
 
         <View style={styles.inputGroup}>
+          <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Filiere (Categorie)</Text>
+          <TextInput
+            style={[styles.textInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+            placeholder="Ex: Developpement Application..."
+            placeholderTextColor={theme.colors.textDisabled}
+            value={category}
+            onChangeText={setCategory}
+            editable={!isLoading}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
           <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Niveau d'etude</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillContainer}>
             {LEVELS.map((lvl) => (
@@ -215,26 +228,6 @@ export default function UploadResourceModal({ visible, onClose }) {
               >
                 <Text style={[styles.pillText, { color: level === lvl ? theme.colors.surface : theme.colors.text }]}>
                   {lvl}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Categorie</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillContainer}>
-            {CATEGORIES.map((cat) => (
-              <Pressable 
-                key={cat} 
-                style={[styles.pill, { 
-                  backgroundColor: category === cat ? theme.colors.primary : theme.colors.surface,
-                  borderColor: category === cat ? theme.colors.primary : theme.colors.border
-                }]}
-                onPress={() => !isLoading && setCategory(cat)}
-              >
-                <Text style={[styles.pillText, { color: category === cat ? theme.colors.surface : theme.colors.text }]}>
-                  {cat}
                 </Text>
               </Pressable>
             ))}

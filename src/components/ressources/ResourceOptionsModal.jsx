@@ -16,6 +16,7 @@ export default function ResourceOptionsModal({
   onEdit,
 }) {
   const theme = useAppTheme();
+  
   if (!resource) return null;
 
   const renderOption = (icon, label, onPress, isDestructive = false) => (
@@ -64,7 +65,7 @@ export default function ResourceOptionsModal({
         )}
         {renderOption(
           <Bookmark color={theme.colors.primaryDark} size={20} />,
-          'Sauvegarder pour plus tard',
+          'Ajouter / Retirer des favoris',
           onSave
         )}
 

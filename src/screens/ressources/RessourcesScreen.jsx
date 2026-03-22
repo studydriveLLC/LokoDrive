@@ -13,6 +13,7 @@ import ResourceOptionsModal from '../../components/ressources/ResourceOptionsMod
 import DocumentViewerModal from '../../components/ressources/DocumentViewerModal';
 import SmartRefreshOverlay from '../../components/ui/SmartRefreshOverlay';
 import { useAppTheme } from '../../theme/theme';
+import socketService from '../../services/socketService';
 import { 
   useGetResourcesQuery, 
   useDeleteResourceMutation, 
@@ -54,12 +55,47 @@ export default function RessourcesScreen({ navigation }) {
   }, [refetch]);
 
   useEffect(() => {
+    let socket;
+    const setupSockets = async () => {
+      socket = await socketService.connect();
+      
+      socket.on('newResource', () => {
+        refetch();
+      });
+
+      socket.on('resourceStatsUpdated', (data) => {
+        setLocalStats(prev => ({
+          ...prev,
+          [data.id]: { views: data.views, downloads: data.downloads }
+        }));
+      });
+    };
+
+    setupSockets();
+
+    return () => {
+      if (socket) {
+        socket.off('newResource');
+        socket.off('resourceStatsUpdated');
+      }
+    };
+  }, [refetch]);
+
+  useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('SMART_TAB_PRESS', async (event) => {
       if (event.routeName !== 'Ressources') return;
       if (isFetchingRef.current) return;
       
       isFetchingRef.current = true;
       setIsSmartRefreshing(true);
+      
+      if (listRef.current) {
+        if (typeof listRef.current.scrollToOffset === 'function') {
+          listRef.current.scrollToOffset({ offset: 0, animated: true });
+        } else if (listRef.current.getNode && typeof listRef.current.getNode().scrollToOffset === 'function') {
+          listRef.current.getNode().scrollToOffset({ offset: 0, animated: true });
+        }
+      }
       
       let isTimeout = false;
       const safetyTimer = setTimeout(() => {
@@ -70,13 +106,6 @@ export default function RessourcesScreen({ navigation }) {
       
       try {
         await refetch();
-        if (listRef.current && !isTimeout) {
-          if (typeof listRef.current.scrollToOffset === 'function') {
-            listRef.current.scrollToOffset({ offset: 0, animated: false });
-          } else if (listRef.current.getNode && typeof listRef.current.getNode().scrollToOffset === 'function') {
-            listRef.current.getNode().scrollToOffset({ offset: 0, animated: false });
-          }
-        }
       } catch (error) {
         console.log('Erreur silencieuse', error);
       } finally {

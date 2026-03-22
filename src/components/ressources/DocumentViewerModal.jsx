@@ -26,6 +26,8 @@ export default function DocumentViewerModal({ visible, onClose, resourceUrl }) {
             source={{ uri: viewerUrl }}
             style={styles.webview}
             startInLoadingState={true}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
             originWhitelist={['*']}
             renderLoading={() => (
               <View style={styles.loader}>
@@ -48,7 +50,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20 
   },
   webview: { 
-    flex: 1 
+    flex: 1,
+    backgroundColor: '#FFFFFF'
   },
   imageViewer: {
     flex: 1,
@@ -62,6 +65,7 @@ const styles = StyleSheet.create({
     right: 0, 
     bottom: 0, 
     justifyContent: 'center', 
-    alignItems: 'center' 
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF'
   }
 });

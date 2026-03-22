@@ -4,6 +4,26 @@ import { Eye, Download as DownloadIcon, MoreVertical } from 'lucide-react-native
 import DownloadProgress from './DownloadProgress';
 import { useAppTheme } from '../../theme/theme';
 
+const formatBytesToMB = (bytes) => {
+  if (!bytes) return '0';
+  return (bytes / (1024 * 1024)).toFixed(1);
+};
+
+const getFormatColor = (format, themePrimary) => {
+  switch (format?.toLowerCase()) {
+    case 'pdf':
+      return '#E25950';
+    case 'docx':
+    case 'doc':
+      return '#2B579A';
+    case 'xlsx':
+    case 'xls':
+      return '#217346';
+    default:
+      return themePrimary;
+  }
+};
+
 export default function ResourceCard({
   resource,
   downloadState,
@@ -12,26 +32,6 @@ export default function ResourceCard({
   onView,
 }) {
   const theme = useAppTheme();
-
-  const formatBytesToMB = (bytes) => {
-    if (!bytes) return '0';
-    return (bytes / (1024 * 1024)).toFixed(1);
-  };
-
-  const getFormatColor = (format) => {
-    switch (format?.toLowerCase()) {
-      case 'pdf':
-        return '#E25950';
-      case 'docx':
-      case 'doc':
-        return '#2B579A';
-      case 'xlsx':
-      case 'xls':
-        return '#217346';
-      default:
-        return theme.colors.primary;
-    }
-  };
 
   const fileSizeMB = resource.fileSize
     ? formatBytesToMB(resource.fileSize)
@@ -42,7 +42,7 @@ export default function ResourceCard({
       <View style={styles.internalPadding}>
         <View style={styles.headerRow}>
           <View style={styles.formatBadgeContainer}>
-            <View style={[styles.formatDot, { backgroundColor: getFormatColor(resource.format) }]} />
+            <View style={[styles.formatDot, { backgroundColor: getFormatColor(resource.format, theme.colors.primary) }]} />
             <Text style={[styles.formatText, { color: theme.colors.textMuted }]}>
               {resource.format?.toUpperCase()} - {fileSizeMB} MB
             </Text>
@@ -66,11 +66,22 @@ export default function ResourceCard({
 
         <View style={styles.footerRow}>
           <View style={styles.leftFooter}>
-            <View style={[styles.levelBadge, { backgroundColor: theme.colors.primaryLight }]}>
-              <Text style={[styles.levelText, { color: theme.colors.primaryDark }]}>
-                {resource.level}
-              </Text>
+            
+            <View style={styles.badgesRow}>
+              <View style={[styles.badge, { backgroundColor: theme.colors.primaryLight }]}>
+                <Text style={[styles.badgeText, { color: theme.colors.primaryDark }]}>
+                  {resource.level}
+                </Text>
+              </View>
+              {resource.category && (
+                <View style={[styles.badge, { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.badgeText, { color: theme.colors.textMuted }]} numberOfLines={1}>
+                    {resource.category}
+                  </Text>
+                </View>
+              )}
             </View>
+
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Eye color={theme.colors.textDisabled} size={14} />
@@ -109,9 +120,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '800', marginBottom: 8, lineHeight: 24 },
   description: { fontSize: 14, lineHeight: 22 },
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  leftFooter: { flex: 1, gap: 10 },
-  levelBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  levelText: { fontSize: 12, fontWeight: '700' },
+  leftFooter: { flex: 1, gap: 12, paddingRight: 10 },
+  badgesRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  badge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  badgeText: { fontSize: 12, fontWeight: '700', maxWidth: 120 },
   statsContainer: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   statItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statText: { fontSize: 13, fontWeight: '600' },
