@@ -1,6 +1,5 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Dimensions, Keyboard, Platform, BackHandler } from 'react-native';
-import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -37,8 +36,13 @@ export default function BottomSheet({ isVisible, onClose, children, footer }) {
     if (isVisible) {
       isClosingRef.current = false;
       setIsMounted(true);
-      opacity.value = withTiming(1, { duration: 300 });
-      translateY.value = withTiming(0, slideConfig);
+      
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          opacity.value = withTiming(1, { duration: 300 });
+          translateY.value = withTiming(0, slideConfig);
+        }, 16); 
+      });
     } else {
       opacity.value = withTiming(0, { duration: 200 });
       translateY.value = withTiming(SCREEN_HEIGHT, slideConfig, (finished) => {
@@ -74,14 +78,13 @@ export default function BottomSheet({ isVisible, onClose, children, footer }) {
     onCloseRef.current();
   }, []);
 
-  // INTERCEPTION DU BOUTON RETOUR PHYSIQUE ANDROID
   useEffect(() => {
     const onBackPress = () => {
       if (isVisible) {
         handleClose();
-        return true; // Bloque le comportement natif (retour en arriere)
+        return true; 
       }
-      return false; // Laisse passer le comportement natif
+      return false; 
     };
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
