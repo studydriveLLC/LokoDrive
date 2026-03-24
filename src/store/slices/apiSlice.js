@@ -75,8 +75,12 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
     result = await baseQuery(args, api, extraOptions);
   }
 
+  let requestUrl = typeof args === 'string' ? args : args?.url || '';
+  // On ne tente JAMAIS de rafraîchir si l'erreur vient d'un endpoint d'auth
+  const isAuthEndpoint = requestUrl.includes('/login') || requestUrl.includes('/register') || requestUrl.includes('/refresh');
+
   // LOGIQUE DE REFRESH TOKEN
-  if (result.error && result.error.status === 401) {
+  if (result.error && result.error.status === 401 && !isAuthEndpoint) {
     if (!mutex.isLocked()) {
       const release = await mutex.acquire();
       try {
@@ -87,30 +91,52 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 
         api.dispatch(setTokenRefreshing(true));
 
+        // 1. On récupère le refresh token de manière robuste ("Bank Grade")
+        let currentRefreshToken = api.getState().auth?.refreshToken;
+        if (!currentRefreshToken) {
+           currentRefreshToken = await getToken('refreshToken');
+        }
+
+        // Si vraiment aucun refresh token, on doit déconnecter
+        if (!currentRefreshToken) {
+            console.warn("[API] Aucun refresh token disponible. Déconnexion.");
+            api.dispatch(logout());
+            return result;
+        }
+
+        // 2. On l'envoie dans le body (standard pour les apps mobiles)
         const refreshResult = await baseQuery(
-          { url: '/v1/auth/refresh', method: 'POST' },
+          { 
+            url: '/v1/auth/refresh', 
+            method: 'POST',
+            body: { refreshToken: currentRefreshToken } 
+          },
           api,
           extraOptions
         );
 
         if (refreshResult.data?.status === 'success') {
           const newToken = refreshResult.data.data.accessToken;
+          // 3. CRUCIAL : On conserve l'ancien si le serveur n'en renvoie pas de nouveau
+          const newRefreshToken = refreshResult.data.data.refreshToken || currentRefreshToken;
           const user = api.getState().auth?.user;
 
-          api.dispatch(setCredentials({ user, token: newToken }));
-          await saveToken('accessToken', newToken);
+          api.dispatch(setCredentials({ 
+            user, 
+            token: newToken, 
+            refreshToken: newRefreshToken 
+          }));
+          
+          // La sauvegarde persistante est gérée par setCredentials dans authSlice
           
           result = await baseQuery(args, api, extraOptions);
         } else {
+          console.warn("[API] Echec du refresh token. Déconnexion.");
           api.dispatch(logout());
-          await deleteToken('accessToken');
-          await deleteToken('userData');
         }
       } catch (error) {
         console.error('[API] Echec critique lors du rafraichissement', error);
         api.dispatch(logout());
-        await deleteToken('accessToken');
-        await deleteToken('userData');
       } finally {
         api.dispatch(setTokenRefreshing(false));
         release();
