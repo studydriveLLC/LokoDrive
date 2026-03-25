@@ -1,4 +1,4 @@
-// src/store/api/notificationApiSlice.js
+//src/store/api/notificationApiSlice.js
 import { apiSlice } from '../slices/apiSlice';
 
 export const notificationApiSlice = apiSlice.injectEndpoints({
@@ -26,7 +26,6 @@ export const notificationApiSlice = apiSlice.injectEndpoints({
         url: `/v1/notifications/${id}/read`,
         method: 'PATCH',
       }),
-      // Mise a jour optimiste pour eteindre le fond bleu instantanement
       async onQueryStarted(id, { dispatch, queryFulfilled }) {
         const patchResult = dispatch(
           notificationApiSlice.util.updateQueryData('getNotifications', { page: 1, limit: 20 }, (draft) => {
@@ -50,6 +49,22 @@ export const notificationApiSlice = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ['Notification', 'NotificationCount'],
     }),
+
+    registerPushToken: builder.mutation({
+      query: (token) => ({
+        url: '/v1/notifications/register-token',
+        method: 'POST',
+        body: { token },
+      }),
+    }),
+
+    unregisterPushToken: builder.mutation({
+      query: (token) => ({
+        url: '/v1/notifications/unregister-token',
+        method: 'POST',
+        body: { token },
+      }),
+    }),
   }),
   overrideExisting: true,
 });
@@ -59,4 +74,6 @@ export const {
   useGetUnreadCountQuery,
   useMarkAsReadMutation,
   useMarkAllAsReadMutation,
+  useRegisterPushTokenMutation,
+  useUnregisterPushTokenMutation,
 } = notificationApiSlice;

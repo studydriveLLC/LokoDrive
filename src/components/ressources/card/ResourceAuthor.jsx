@@ -34,6 +34,7 @@ export default function ResourceAuthor({ user, createdAt }) {
 
   const isMe = currentUser?._id === user?._id;
 
+  // Requete automatique au montage pour connaitre l'etat (S'abonner / Abonne)
   const { data: statusData, isLoading: isStatusLoading } = useGetFollowStatusQuery(user?._id, {
     skip: !user?._id || isMe,
   });
@@ -42,6 +43,8 @@ export default function ResourceAuthor({ user, createdAt }) {
   const [unfollowUser, { isLoading: isUnfollowing }] = useUnfollowUserMutation();
 
   const isFollowed = statusData?.data?.isFollowing || false;
+  
+  // isActionLoading ne concerne DESORMAIS que le vrai clic utilisateur
   const isActionLoading = isFollowing || isUnfollowing;
 
   useEffect(() => {
@@ -53,7 +56,8 @@ export default function ResourceAuthor({ user, createdAt }) {
   }, [createdAt]);
 
   const handleToggleFollow = async () => {
-    if (isActionLoading || !user?._id) return;
+    // Si ca charge (statut ou action), on bloque le clic par securite
+    if (isActionLoading || isStatusLoading || !user?._id) return;
     try {
       if (isFollowed) {
         await unfollowUser(user._id).unwrap();
@@ -90,19 +94,22 @@ export default function ResourceAuthor({ user, createdAt }) {
             { 
               backgroundColor: isFollowed ? 'transparent' : theme.colors.primary,
               borderColor: isFollowed ? theme.colors.border : theme.colors.primary,
+              opacity: isStatusLoading ? 0.6 : 1 // Opacite reduite pendant la requete invisible
             }
           ]}
           onPress={handleToggleFollow}
           disabled={isActionLoading || isStatusLoading}
         >
-          {isActionLoading || isStatusLoading ? (
+          {/* Le spinner n'apparait QUE si l'utilisateur clique */}
+          {isActionLoading ? (
             <ActivityIndicator size="small" color={isFollowed ? theme.colors.text : '#fff'} />
           ) : (
             <Text style={[
               styles.followButtonText, 
               { color: isFollowed ? theme.colors.text : '#fff' }
             ]}>
-              {isFollowed ? 'Abonne' : "S'abonner"}
+              {/* UX amelioree : 3 petits points pendant que l'app cherche le statut */}
+              {isStatusLoading ? '...' : (isFollowed ? 'Abonne' : "S'abonner")}
             </Text>
           )}
         </Pressable>

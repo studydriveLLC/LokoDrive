@@ -6,9 +6,9 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { getToken } from '../store/secureStoreAdapter';
 
-// Importation des actions sécurisées
 import { restoreAuth, forceSilentRefresh, setAuthLoading } from '../store/slices/authSlice';
 import { useAppTheme } from '../theme/theme';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 import LandingPage from '../screens/auth/LandingPage';
 import LoginPage from '../screens/auth/LoginPage';
@@ -53,6 +53,10 @@ export default function AppNavigator() {
   const dispatch = useDispatch();
   const theme = useAppTheme();
   const { isAuthenticated, isLoading } = useSelector((state) => state.auth);
+
+  // Initialisation du service de notifications Push
+  // Le hook gère lui-même sa sécurité et ne s'exécutera que si un utilisateur est authentifié.
+  usePushNotifications();
 
   useEffect(() => {
     const bootSequence = async () => {
@@ -143,7 +147,6 @@ export default function AppNavigator() {
               
               <Stack.Screen name="MyResources" component={MyResourcesScreen} />
               
-              {/* NOTIFICATIONS AVEC FADE-IN IMMERSIF */}
               <Stack.Screen 
                 name="Notifications" 
                 component={NotificationsScreen} 
