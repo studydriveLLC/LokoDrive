@@ -1,4 +1,3 @@
-//src/store/api/notificationApiSlice.js
 import { apiSlice } from '../slices/apiSlice';
 import socketService from '../../services/socketService';
 
@@ -20,16 +19,12 @@ export const notificationApiSlice = apiSlice.injectEndpoints({
     getUnreadCount: builder.query({
       query: () => ({ url: '/v1/notifications/unread-count' }),
       providesTags: ['NotificationCount'],
-      async onCacheEntryAdded(arg, { updateCachedData, cacheDataLoaded, cacheEntryRemoved }) {
+      async onCacheEntryAdded(arg, { dispatch, cacheDataLoaded, cacheEntryRemoved }) {
         try {
           await cacheDataLoaded;
           
           const handleNewNotification = () => {
-            updateCachedData((draft) => {
-              if (draft && draft.data && typeof draft.data.count === 'number') {
-                draft.data.count += 1;
-              }
-            });
+            dispatch(notificationApiSlice.util.invalidateTags(['NotificationCount']));
           };
 
           socketService.on('new_notification', handleNewNotification);
@@ -37,7 +32,7 @@ export const notificationApiSlice = apiSlice.injectEndpoints({
           await cacheEntryRemoved;
           socketService.off('new_notification', handleNewNotification);
         } catch {
-          // Si le chargement echoue, on ne plante pas l'application
+          // Ignorer l'erreur silencieusement si le chargement initial echoue
         }
       }
     }),

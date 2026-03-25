@@ -40,10 +40,7 @@ export const socialApiSlice = apiSlice.injectEndpoints({
           patchStats.undo();
         }
       },
-      invalidatesTags: (result, error, arg) => [
-        { type: 'FollowStatus', id: arg },
-        'FollowStats'
-      ],
+      invalidatesTags: ['FollowStats'], 
     }),
     
     unfollowUser: builder.mutation({
@@ -74,10 +71,7 @@ export const socialApiSlice = apiSlice.injectEndpoints({
           patchStats.undo();
         }
       },
-      invalidatesTags: (result, error, arg) => [
-        { type: 'FollowStatus', id: arg },
-        'FollowStats'
-      ],
+      invalidatesTags: ['FollowStats'], 
     }),
   }),
   overrideExisting: true,

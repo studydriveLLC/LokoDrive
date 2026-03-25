@@ -1,7 +1,6 @@
-//src/components/navigation/NotificationBell.jsx
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, cancelAnimation } from 'react-native-reanimated';
 import { Bell } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useGetUnreadCountQuery } from '../../store/api/notificationApiSlice';
@@ -29,6 +28,7 @@ export default function NotificationBell() {
         true
       );
     } else {
+      cancelAnimation(blinkOpacity);
       blinkOpacity.value = 1;
     }
   }, [unreadCount, blinkOpacity]);
