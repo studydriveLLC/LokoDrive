@@ -1,3 +1,4 @@
+//src/components/navigation/NotificationBell.jsx
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, cancelAnimation } from 'react-native-reanimated';
@@ -56,5 +57,13 @@ export default function NotificationBell() {
 
 const styles = StyleSheet.create({
   iconButton: { padding: 4 },
-  badge: { position: 'absolute', top: 4, right: 4, width: 10, height: 10, borderRadius: 5, borderWidth: 1.5 },
+  badge: { 
+    position: 'absolute', 
+    top: 2, 
+    right: 2, 
+    width: 14, 
+    height: 14, 
+    borderRadius: 7, 
+    borderWidth: 2 
+  },
 });
