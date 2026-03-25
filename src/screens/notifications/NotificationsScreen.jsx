@@ -92,8 +92,14 @@ export default function NotificationsScreen({ navigation }) {
       toggleSelection(notification._id);
       return;
     }
+    
     if (!notification.isRead) {
       try { await markAsRead(notification._id).unwrap(); } catch (error) {}
+    }
+
+    if (notification.dataPayload && notification.dataPayload.screen) {
+      const { screen, ...params } = notification.dataPayload;
+      navigation.navigate(screen, params);
     }
   };
 
@@ -259,7 +265,6 @@ const styles = StyleSheet.create({
   selectedOverlay: { position: 'absolute', top: 8, right: 8, width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   fabContainer: { position: 'absolute', bottom: 30, right: 20, zIndex: 100 },
   
-  // Styles pour l'animation
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 40 },
   animationWrapper: { width: 120, height: 120, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
   pulseCircle: { position: 'absolute', width: 80, height: 80, borderRadius: 40, opacity: 0.2 },

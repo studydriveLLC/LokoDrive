@@ -42,6 +42,7 @@ export default function ResourceAuthor({ user, createdAt }) {
   const [unfollowUser, { isLoading: isUnfollowing }] = useUnfollowUserMutation();
 
   const isFollowed = statusData?.data?.isFollowing || false;
+  const isFollower = statusData?.data?.isFollower || false;
   const isActionLoading = isFollowing || isUnfollowing;
 
   useEffect(() => {
@@ -68,6 +69,29 @@ export default function ResourceAuthor({ user, createdAt }) {
   if (!user) return null;
   const avatarUrl = user.avatar || 'https://ui-avatars.com/api/?name=User&background=random';
 
+  const getButtonText = () => {
+    if (isFollowed) return 'Abonne';
+    if (isFollower) return 'Suivre en retour';
+    return "S'abonner";
+  };
+
+  const getButtonStyles = () => {
+    if (isFollowed) {
+      return {
+        backgroundColor: 'transparent',
+        borderColor: theme.colors.border,
+        textColor: theme.colors.text
+      };
+    }
+    return {
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary,
+      textColor: '#fff'
+    };
+  };
+
+  const buttonStyle = getButtonStyles();
+
   return (
     <View style={styles.container}>
       <Image source={{ uri: avatarUrl }} style={styles.avatar} />
@@ -88,21 +112,21 @@ export default function ResourceAuthor({ user, createdAt }) {
           style={[
             styles.followButton, 
             { 
-              backgroundColor: isFollowed ? 'transparent' : theme.colors.primary,
-              borderColor: isFollowed ? theme.colors.border : theme.colors.primary,
+              backgroundColor: buttonStyle.backgroundColor,
+              borderColor: buttonStyle.borderColor,
             }
           ]}
           onPress={handleToggleFollow}
           disabled={isActionLoading || isStatusLoading}
         >
           {isActionLoading ? (
-            <ActivityIndicator size="small" color={isFollowed ? theme.colors.text : '#fff'} />
+            <ActivityIndicator size="small" color={buttonStyle.textColor} />
           ) : (
             <Text style={[
               styles.followButtonText, 
-              { color: isFollowed ? theme.colors.text : '#fff' }
+              { color: buttonStyle.textColor }
             ]}>
-              {isFollowed ? 'Abonne' : "S'abonner"}
+              {getButtonText()}
             </Text>
           )}
         </Pressable>

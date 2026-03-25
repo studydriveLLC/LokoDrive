@@ -95,17 +95,13 @@ export default function AppNavigator() {
     bootSequence();
   }, [dispatch]);
 
-  // Écouteur global pour le temps reel (In-App Notifications)
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const handleNewNotification = () => {
-      // Invalide le cache de RTK Query : force le rafraichissement silencieux
-      // du compteur (badge) et de la liste (si l'ecran est ouvert)
-      dispatch(apiSlice.util.invalidateTags(['Notification', 'NotificationCount']));
+      dispatch(apiSlice.util.invalidateTags([{ type: 'Notification', id: 'LIST' }, 'NotificationCount']));
     };
 
-    // On utilise la methode .on() robuste de ta classe SocketService
     socketService.on('new_notification', handleNewNotification);
 
     return () => {
