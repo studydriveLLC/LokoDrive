@@ -1,4 +1,3 @@
-//src/components/navigation/AnimatedHeader.jsx
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TextInput, Pressable, DeviceEventEmitter, Text, Keyboard } from 'react-native';
 import Animated, { 
@@ -8,21 +7,15 @@ import Animated, {
   FadeInLeft, 
   FadeOutRight, 
   FadeInRight, 
-  FadeOutLeft,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming
+  FadeOutLeft
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Search, Bell, Menu, X, ArrowLeft } from 'lucide-react-native';
+import { Search, Menu, X, ArrowLeft } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/theme';
 import { useHeaderAnimations, SCROLL_DISTANCE } from './useHeaderAnimations';
 import AnimatedSearchPlaceholder from './AnimatedSearchPlaceholder';
-import { useGetUnreadCountQuery } from '../../store/api/notificationApiSlice';
-import socketService from '../../services/socketService';
+import NotificationBell from './NotificationBell';
 
 export default function AnimatedHeader({ scrollY }) {
   const insets = useSafeAreaInsets();
@@ -35,31 +28,6 @@ export default function AnimatedHeader({ scrollY }) {
   const [isCompactSearchActive, setIsCompactSearchActive] = useState(false);
 
   const animations = useHeaderAnimations(scrollY, insets);
-  const blinkOpacity = useSharedValue(1);
-
-  const { data: unreadData, refetch: refetchUnread } = useGetUnreadCountQuery(undefined, {
-    refetchOnMountOrArgChange: true,
-  });
-  const unreadCount = unreadData?.data?.count || 0;
-
-  useEffect(() => {
-    if (unreadCount > 0) {
-      blinkOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.2, { duration: 800 }),
-          withTiming(1, { duration: 800 })
-        ),
-        -1,
-        true
-      );
-    } else {
-      blinkOpacity.value = 1;
-    }
-  }, [unreadCount, blinkOpacity]);
-
-  const animatedBadgeStyle = useAnimatedStyle(() => ({
-    opacity: blinkOpacity.value,
-  }));
 
   useAnimatedReaction(
     () => scrollY.value,
@@ -124,12 +92,7 @@ export default function AnimatedHeader({ scrollY }) {
                 </Pressable>
               </Animated.View>
 
-              <Pressable onPress={() => navigation.navigate('Notifications')} hitSlop={10} style={styles.iconButton}>
-                <Bell color={theme.colors.surface} size={24} />
-                {unreadCount > 0 && (
-                  <Animated.View style={[styles.badge, { backgroundColor: theme.colors.error, borderColor: theme.colors.primary }, animatedBadgeStyle]} />
-                )}
-              </Pressable>
+              <NotificationBell />
 
               <Pressable onPress={() => navigation.navigate('Menu')} hitSlop={10} style={styles.iconButton}>
                 <Menu color={theme.colors.surface} size={28} />
@@ -177,7 +140,6 @@ const styles = StyleSheet.create({
   logoText: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
   rightSection: { flexDirection: 'row', alignItems: 'center', gap: 16 }, 
   iconButton: { padding: 4 },
-  badge: { position: 'absolute', top: 4, right: 4, width: 10, height: 10, borderRadius: 5, borderWidth: 1.5 },
   compactSearchWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   backButtonCompact: { marginRight: 12 },
   searchBarCompact: { flex: 1, height: 40, borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },

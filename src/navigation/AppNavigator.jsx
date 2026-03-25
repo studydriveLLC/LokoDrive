@@ -1,8 +1,7 @@
-//src/navigation/AppNavigator.jsx
 import React, { useEffect } from 'react';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { getToken } from '../store/secureStoreAdapter';
 
@@ -29,14 +28,7 @@ const Stack = createStackNavigator();
 
 const fastSpringConfig = {
   animation: 'spring',
-  config: {
-    stiffness: 250,
-    damping: 20,
-    mass: 1,
-    overshootClamping: true,
-    restDisplacementThreshold: 0.01,
-    restSpeedThreshold: 0.01,
-  },
+  config: { stiffness: 250, damping: 20, mass: 1, overshootClamping: true, restDisplacementThreshold: 0.01, restSpeedThreshold: 0.01 },
 };
 
 const fadeTimingConfig = {
@@ -45,10 +37,15 @@ const fadeTimingConfig = {
 };
 
 const immersiveFadeInterpolator = ({ current }) => ({
-  cardStyle: {
-    opacity: current.progress,
-  },
+  cardStyle: { opacity: current.progress },
 });
+
+const PlaceholderProfileScreen = ({ route }) => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Profil (En construction)</Text>
+    <Text>ID de l'utilisateur : {route.params?.userId}</Text>
+  </View>
+);
 
 export default function AppNavigator() {
   const dispatch = useDispatch();
@@ -66,26 +63,15 @@ export default function AppNavigator() {
 
         if (token && userDataStr) {
           let savedUser = null;
-          try {
-            savedUser = JSON.parse(userDataStr);
-          } catch (parseError) {
-            console.error('[Boot] Erreur de parsing userData', parseError);
-          }
+          try { savedUser = JSON.parse(userDataStr); } catch (parseError) { console.error('[Boot] Erreur', parseError); }
           
-          dispatch(restoreAuth({ 
-            user: savedUser, 
-            token, 
-            refreshToken
-          }));
-
+          dispatch(restoreAuth({ user: savedUser, token, refreshToken }));
           socketService.connect(token);
           dispatch(forceSilentRefresh());
-
         } else {
           dispatch(restoreAuth({ user: null, token: null, refreshToken: null }));
         }
       } catch (error) {
-        console.error('[Boot] Erreur critique SecureStore', error);
         dispatch(restoreAuth({ user: null, token: null, refreshToken: null }));
       } finally {
         dispatch(setAuthLoading(false));
@@ -102,10 +88,24 @@ export default function AppNavigator() {
       dispatch(apiSlice.util.invalidateTags([{ type: 'Notification', id: 'LIST' }, 'NotificationCount']));
     };
 
+    const handleFollowStatsUpdated = (data) => {
+      if (data && data.userId) {
+        dispatch(apiSlice.util.invalidateTags([
+          { type: 'FollowStatus', id: data.userId },
+          'FollowStatus', 
+          'FollowStats'
+        ]));
+      } else {
+        dispatch(apiSlice.util.invalidateTags(['FollowStatus', 'FollowStats']));
+      }
+    };
+
     socketService.on('new_notification', handleNewNotification);
+    socketService.on('follow_stats_updated', handleFollowStatsUpdated);
 
     return () => {
       socketService.off('new_notification', handleNewNotification);
+      socketService.off('follow_stats_updated', handleFollowStatsUpdated);
     };
   }, [isAuthenticated, dispatch]);
 
@@ -121,17 +121,13 @@ export default function AppNavigator() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={[styles.mainWrapper, { backgroundColor: theme.colors.background }]}>
         <TopInsetBox />
-        
         <TokenGuardian />
         
         <Stack.Navigator
           screenOptions={{
             headerShown: false,
             cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-            transitionSpec: {
-              open: fastSpringConfig,
-              close: fastSpringConfig,
-            },
+            transitionSpec: { open: fastSpringConfig, close: fastSpringConfig },
           }}
         >
           {!isAuthenticated ? (
@@ -143,33 +139,25 @@ export default function AppNavigator() {
           ) : (
             <>
               <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-              
+              <Stack.Screen name="Profile" component={PlaceholderProfileScreen} />
               <Stack.Screen
                 name="Menu"
                 component={MenuScreen}
                 options={{
                   gestureEnabled: false,
                   cardStyle: { backgroundColor: theme.colors.background },
-                  transitionSpec: {
-                    open: fadeTimingConfig,
-                    close: fadeTimingConfig,
-                  },
+                  transitionSpec: { open: fadeTimingConfig, close: fadeTimingConfig },
                   cardStyleInterpolator: immersiveFadeInterpolator,
                 }}
               />
-              
               <Stack.Screen name="MyResources" component={MyResourcesScreen} />
-              
               <Stack.Screen 
                 name="Notifications" 
                 component={NotificationsScreen} 
                 options={{
                   gestureEnabled: true,
                   cardStyle: { backgroundColor: theme.colors.background },
-                  transitionSpec: {
-                    open: fadeTimingConfig,
-                    close: fadeTimingConfig,
-                  },
+                  transitionSpec: { open: fadeTimingConfig, close: fadeTimingConfig },
                   cardStyleInterpolator: immersiveFadeInterpolator,
                 }}
               />

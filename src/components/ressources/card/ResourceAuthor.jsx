@@ -1,4 +1,3 @@
-//src/components/ressources/card/ResourceAuthor.jsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ActivityIndicator } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -66,31 +65,22 @@ export default function ResourceAuthor({ user, createdAt }) {
     }
   };
   
+  let buttonText = "S'abonner";
+  let buttonBgColor = theme.colors.primary;
+  let buttonTextColor = '#fff';
+  let buttonBorderColor = theme.colors.primary;
+
+  if (isFollowed) {
+    buttonText = "Abonné";
+    buttonBgColor = 'transparent';
+    buttonTextColor = theme.colors.text;
+    buttonBorderColor = theme.colors.border;
+  } else if (isFollower) {
+    buttonText = "Suivre en retour";
+  }
+
   if (!user) return null;
   const avatarUrl = user.avatar || 'https://ui-avatars.com/api/?name=User&background=random';
-
-  const getButtonText = () => {
-    if (isFollowed) return 'Abonne';
-    if (isFollower) return 'Suivre en retour';
-    return "S'abonner";
-  };
-
-  const getButtonStyles = () => {
-    if (isFollowed) {
-      return {
-        backgroundColor: 'transparent',
-        borderColor: theme.colors.border,
-        textColor: theme.colors.text
-      };
-    }
-    return {
-      backgroundColor: theme.colors.primary,
-      borderColor: theme.colors.primary,
-      textColor: '#fff'
-    };
-  };
-
-  const buttonStyle = getButtonStyles();
 
   return (
     <View style={styles.container}>
@@ -112,21 +102,18 @@ export default function ResourceAuthor({ user, createdAt }) {
           style={[
             styles.followButton, 
             { 
-              backgroundColor: buttonStyle.backgroundColor,
-              borderColor: buttonStyle.borderColor,
+              backgroundColor: buttonBgColor,
+              borderColor: buttonBorderColor,
             }
           ]}
           onPress={handleToggleFollow}
           disabled={isActionLoading || isStatusLoading}
         >
           {isActionLoading ? (
-            <ActivityIndicator size="small" color={buttonStyle.textColor} />
+            <ActivityIndicator size="small" color={isFollowed ? theme.colors.text : '#fff'} />
           ) : (
-            <Text style={[
-              styles.followButtonText, 
-              { color: buttonStyle.textColor }
-            ]}>
-              {getButtonText()}
+            <Text style={[styles.followButtonText, { color: buttonTextColor }]}>
+              {buttonText}
             </Text>
           )}
         </Pressable>
