@@ -1,9 +1,10 @@
+// src/screens/home/FeedScreen.jsx
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, DeviceEventEmitter, Text, RefreshControl } from 'react-native';
-import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
+import { View, StyleSheet, Text, RefreshControl } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useScrollToTop } from '@react-navigation/native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import AnimatedHeader from '../../components/navigation/AnimatedHeader';
 import PostCard from '../../components/feed/PostCard';
 import SkeletonPostCard from '../../components/feed/SkeletonPostCard';
@@ -14,6 +15,7 @@ import PostOptionsModal from '../../components/feed/PostOptionsModal';
 import SmartRefreshOverlay from '../../components/ui/SmartRefreshOverlay';
 import { useGetFeedQuery, useToggleLikeMutation } from '../../store/api/postApiSlice';
 import { useAppTheme } from '../../theme/theme';
+import { setScreenScrolled } from '../../store/slices/uiSlice';
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -63,9 +65,14 @@ export default function FeedScreen({ navigation }) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
+  const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
+  
+  const scrollTrigger = useSelector((state) => state.ui.scrollState['PourToi']?.trigger || 0);
+  
   const listRef = useRef(null);
-  const isFetchingRef = useRef(false);
+  const lastScrolledState = useRef(false);
+  const prevTrigger = useRef(scrollTrigger);
 
   useScrollToTop(listRef);
 
@@ -77,19 +84,21 @@ export default function FeedScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [isSmartRefreshing, setIsSmartRefreshing] = useState(false);
 
-  const {
-    data: posts = [],
-    isLoading,
-    isError,
-    refetch,
-  } = useGetFeedQuery();
-
+  const { data: posts = [], isLoading, isError, refetch } = useGetFeedQuery();
   const [toggleLike] = useToggleLikeMutation();
   const transformedPosts = posts.map(mapPostFromBackend);
+
+  const updateScrollState = useCallback((isScrolled) => {
+    if (lastScrolledState.current !== isScrolled) {
+      lastScrolledState.current = isScrolled;
+      dispatch(setScreenScrolled({ screenName: 'PourToi', isScrolled }));
+    }
+  }, [dispatch]);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollY.value = event.contentOffset.y;
+      runOnJS(updateScrollState)(event.contentOffset.y > 200);
     },
   });
 
@@ -100,42 +109,28 @@ export default function FeedScreen({ navigation }) {
   }, [refetch]);
 
   useEffect(() => {
-    const subscription = DeviceEventEmitter.addListener('SMART_TAB_PRESS', async (event) => {
-      if (event.routeName !== 'PourToi') return;
-      if (isFetchingRef.current) return;
-      
-      isFetchingRef.current = true;
+    if (scrollTrigger > prevTrigger.current) {
+      prevTrigger.current = scrollTrigger;
       setIsSmartRefreshing(true);
       
-      let isTimeout = false;
-      const safetyTimer = setTimeout(() => {
-        isTimeout = true;
-        setIsSmartRefreshing(false);
-        isFetchingRef.current = false;
-      }, 8000); 
-      
-      try {
-        await refetch();
-        
-        if (listRef.current && !isTimeout) {
-          if (typeof listRef.current.scrollToOffset === 'function') {
-            listRef.current.scrollToOffset({ offset: 0, animated: false });
-          } else if (listRef.current.getNode && typeof listRef.current.getNode().scrollToOffset === 'function') {
-            listRef.current.getNode().scrollToOffset({ offset: 0, animated: false });
+      setTimeout(() => {
+        try {
+          if (listRef.current?.scrollToOffset) {
+            listRef.current.scrollToOffset({ offset: 0, animated: true });
+          } else if (listRef.current?.getNode?.()?.scrollToOffset) {
+            listRef.current.getNode().scrollToOffset({ offset: 0, animated: true });
           }
+        } catch (error) {
+          console.log("Erreur de scroll silencieuse:", error);
         }
-      } catch (error) {
-        console.log('Erreur silencieuse lors du rafraichissement', error);
-      } finally {
-        clearTimeout(safetyTimer);
-        if (!isTimeout) {
-          setIsSmartRefreshing(false);
-          isFetchingRef.current = false;
-        }
-      }
-    });
-    return () => subscription.remove();
-  }, [refetch]);
+      }, 150);
+      
+      setTimeout(() => {
+        setIsSmartRefreshing(false);
+        updateScrollState(false); 
+      }, 800);
+    }
+  }, [scrollTrigger, updateScrollState]);
 
   const handleLike = async (postId) => {
     try {
@@ -165,12 +160,8 @@ export default function FeedScreen({ navigation }) {
     if (isError) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            Erreur lors du chargement
-          </Text>
-          <Text style={[styles.retryText, { color: theme.colors.primary }]} onPress={onRefresh}>
-            Appuyez pour reessayer
-          </Text>
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>Erreur lors du chargement</Text>
+          <Text style={[styles.retryText, { color: theme.colors.primary }]} onPress={onRefresh}>Appuyez pour reessayer</Text>
         </View>
       );
     }
@@ -178,12 +169,8 @@ export default function FeedScreen({ navigation }) {
     if (!transformedPosts.length) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
-            Aucune publication pour le moment.
-          </Text>
-          <Text style={[styles.emptySubtext, { color: theme.colors.textDisabled }]}>
-            Soyez le premier a publier quelque chose !
-          </Text>
+          <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>Aucune publication pour le moment.</Text>
+          <Text style={[styles.emptySubtext, { color: theme.colors.textDisabled }]}>Soyez le premier a publier quelque chose !</Text>
         </View>
       );
     }
@@ -196,9 +183,7 @@ export default function FeedScreen({ navigation }) {
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
         contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
         renderItem={({ item }) => (
           <PostCard
@@ -222,45 +207,17 @@ export default function FeedScreen({ navigation }) {
       <SmartRefreshOverlay isVisible={isSmartRefreshing} />
       {renderContent()}
 
-      <CommentsModal
-        visible={!!activeCommentPost}
-        onClose={() => setActiveCommentPost(null)}
-        post={activeCommentPost}
-      />
-
-      <PostDescriptionModal
-        visible={!!activeDescPost}
-        onClose={() => setActiveDescPost(null)}
-        author={activeDescPost?.author}
-        date={activeDescPost?.date}
-        description={activeDescPost?.description}
-      />
-
-      <ShareModal
-        visible={!!activeSharePost}
-        onClose={() => setActiveSharePost(null)}
-        postId={activeSharePost?._id}
-      />
-
-      <PostOptionsModal
-        visible={!!activeOptionsPost}
-        onClose={() => setActiveOptionsPost(null)}
-        isMyPost={activeOptionsPost?.author?.pseudo === user?.pseudo}
-        onDelete={() => handleDelete(activeOptionsPost?._id)}
-      />
+      <CommentsModal visible={!!activeCommentPost} onClose={() => setActiveCommentPost(null)} post={activeCommentPost} />
+      <PostDescriptionModal visible={!!activeDescPost} onClose={() => setActiveDescPost(null)} author={activeDescPost?.author} date={activeDescPost?.date} description={activeDescPost?.description} />
+      <ShareModal visible={!!activeSharePost} onClose={() => setActiveSharePost(null)} postId={activeSharePost?._id} />
+      <PostOptionsModal visible={!!activeOptionsPost} onClose={() => setActiveOptionsPost(null)} isMyPost={activeOptionsPost?.author?.pseudo === user?.pseudo} onDelete={() => handleDelete(activeOptionsPost?._id)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 140,
-    paddingHorizontal: 32,
-  },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 140, paddingHorizontal: 32 },
   errorText: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
   retryText: { marginTop: 12, fontSize: 16, fontWeight: '500' },
   emptyText: { fontSize: 18, fontWeight: '600', textAlign: 'center' },

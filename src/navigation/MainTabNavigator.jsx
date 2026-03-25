@@ -1,13 +1,15 @@
-//src/navigation/MainTabNavigator.jsx
+// src/navigation/MainTabNavigator.jsx
 import React, { useState, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, DeviceEventEmitter } from 'react-native';
+import { useDispatch } from 'react-redux';
 import AnimatedTabBar from '../components/navigation/AnimatedTabBar';
 import FeedScreen from '../screens/home/FeedScreen';
 import RessourcesScreen from '../screens/ressources/RessourcesScreen';
 import CreatePostModal from '../components/action/CreatePostModal';
 import UploadResourceModal from '../components/action/UploadResourceModal';
 import { useAppTheme } from '../theme/theme';
+import { triggerScrollToTop } from '../store/slices/uiSlice';
 
 const Tab = createBottomTabNavigator();
 
@@ -25,6 +27,7 @@ const EmptyActionScreen = () => null;
 export default function MainTabNavigator() {
   const [isPostModalVisible, setIsPostModalVisible] = useState(false);
   const [isResourceModalVisible, setIsResourceModalVisible] = useState(false);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('SMART_ACTION_PRESS', ({ routeName }) => {
@@ -47,15 +50,13 @@ export default function MainTabNavigator() {
       <Tab.Navigator 
         tabBar={(props) => <AnimatedTabBar {...props} />} 
         screenOptions={{ headerShown: false }}
-        // INTERCEPTION UX NIVEAU 8 : Écoute globale des clics sur les onglets
         screenListeners={({ navigation, route }) => ({
           tabPress: (e) => {
             const state = navigation.getState();
             const activeRouteName = state.routes[state.index].name;
             
-            // Si on clique sur l'onglet sur lequel on se trouve déjà
             if (route.name === activeRouteName) {
-              DeviceEventEmitter.emit('SMART_TAB_PRESS', { routeName: route.name });
+              dispatch(triggerScrollToTop({ screenName: route.name }));
             }
           },
         })}

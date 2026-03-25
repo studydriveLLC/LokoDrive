@@ -1,7 +1,7 @@
 // src/screens/ressources/RessourcesScreen.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, DeviceEventEmitter, RefreshControl, AppState, Share, Keyboard } from 'react-native';
-import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
+import { View, Text, StyleSheet, Pressable, DeviceEventEmitter, RefreshControl, AppState, Share } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 
@@ -17,7 +17,7 @@ import SmartRefreshOverlay from '../../components/ui/SmartRefreshOverlay';
 
 import { useAppTheme } from '../../theme/theme';
 import socketService from '../../services/socketService';
-import { showSuccessToast } from '../../store/slices/uiSlice';
+import { showSuccessToast, setScreenScrolled } from '../../store/slices/uiSlice';
 import { 
   useGetResourcesQuery, useDeleteResourceMutation, 
   useLogDownloadMutation, useLogViewMutation, useGetResourceQuery, 
@@ -32,14 +32,16 @@ export default function RessourcesScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
   const listRef = useRef(null);
-  const isFetchingRef = useRef(false);
   const dispatch = useDispatch();
 
   const token = useSelector((state) => state.auth?.token);
   const currentUserId = navigation.getState()?.routes?.find((r) => r.name === 'Main')?.params?.user?._id;
+  const scrollTrigger = useSelector((state) => state.ui.scrollState['Ressources']?.trigger || 0);
 
   const [queryArgs, setQueryArgs] = useState({ page: 1, limit: 20 });
   const queryArgsRef = useRef(queryArgs);
+  const prevTrigger = useRef(scrollTrigger);
+  const lastScrolledState = useRef(false);
 
   const [activeOptionsResource, setActiveOptionsResource] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -96,18 +98,27 @@ export default function RessourcesScreen({ navigation }) {
     return () => subscription.remove();
   }, []);
 
-  // LE CŒUR DE L'UX NIVEAU 8 - CORRIGÉ
+  const updateScrollState = useCallback((isScrolled) => {
+    if (lastScrolledState.current !== isScrolled) {
+      lastScrolledState.current = isScrolled;
+      dispatch(setScreenScrolled({ screenName: 'Ressources', isScrolled }));
+    }
+  }, [dispatch]);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => { 
+      scrollY.value = event.contentOffset.y; 
+      runOnJS(updateScrollState)(event.contentOffset.y > 200);
+    },
+  });
+
   useEffect(() => {
-    const subscription = DeviceEventEmitter.addListener('SMART_TAB_PRESS', (event) => {
-      if (event.routeName !== 'Ressources' || isFetchingRef.current) return;
-      
-      isFetchingRef.current = true;
+    if (scrollTrigger > prevTrigger.current) {
+      prevTrigger.current = scrollTrigger;
       setIsSmartRefreshing(true); 
 
-      // 1. On donne 150ms à l'overlay pour s'afficher complètement et masquer l'écran
       setTimeout(() => {
         try {
-          // 2. animated: true force le moteur natif à exécuter le scroll sans faille
           if (listRef.current?.scrollToOffset) {
             listRef.current.scrollToOffset({ offset: 0, animated: true });
           } else if (listRef.current?.getNode?.()?.scrollToOffset) {
@@ -118,19 +129,12 @@ export default function RessourcesScreen({ navigation }) {
         }
       }, 150);
       
-      // 3. On retire l'overlay après 800ms (le scroll prend ~300ms en arrière-plan)
       setTimeout(() => {
         setIsSmartRefreshing(false); 
-        isFetchingRef.current = false;
+        updateScrollState(false);
       }, 800);
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => { scrollY.value = event.contentOffset.y; },
-  });
+    }
+  }, [scrollTrigger, updateScrollState]);
 
   const handleConfirmDelete = async () => {
     if (!resourceToDelete) return;
@@ -161,9 +165,7 @@ export default function RessourcesScreen({ navigation }) {
       if (result.action === Share.sharedAction) {
         await logShare(resource._id).unwrap();
       }
-    } catch (error) {
-      console.log('Erreur lors du partage:', error);
-    } finally {
+    } catch (error) {} finally {
       if (activeOptionsResource && activeOptionsResource._id === resource._id) {
         setActiveOptionsResource(null);
       }
@@ -173,7 +175,6 @@ export default function RessourcesScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AnimatedHeader scrollY={scrollY} navigation={navigation} />
-      
       <SmartRefreshOverlay isVisible={isSmartRefreshing} />
 
       {isLoading && resources.length === 0 ? (
@@ -197,20 +198,11 @@ export default function RessourcesScreen({ navigation }) {
           keyboardDismissMode="on-drag" 
           contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
           renderItem={({ item }) => (
-            <ResourceCard
-              resource={item}
-              downloadState={downloads[item._id]}
-              onView={handleViewAction}
-              onDownloadAction={handleDownloadAction}
-              onOptions={setActiveOptionsResource}
-              onShare={handleShare}
-            />
+            <ResourceCard resource={item} downloadState={downloads[item._id]} onView={handleViewAction} onDownloadAction={handleDownloadAction} onOptions={setActiveOptionsResource} onShare={handleShare} />
           )}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
-                {isError ? 'Erreur lors du chargement' : 'Aucune ressource correspondante'}
-              </Text>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{isError ? 'Erreur lors du chargement' : 'Aucune ressource correspondante'}</Text>
               <Pressable style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={refetch}>
                 <Text style={[styles.retryText, { color: theme.colors.surface }]}>Reessayer</Text>
               </Pressable>
@@ -220,45 +212,11 @@ export default function RessourcesScreen({ navigation }) {
         />
       )}
 
-      <ResourceOptionsModal
-        visible={!!activeOptionsResource}
-        resource={activeOptionsResource}
-        onClose={() => setActiveOptionsResource(null)}
-        isMyResource={activeOptionsResource?.uploadedBy?._id === currentUserId}
-        isSaving={isTogglingFavorite}
-        onShare={() => handleShare(activeOptionsResource)}
-        onSave={async () => {
-          try { 
-            const result = await toggleFavorite(activeOptionsResource._id).unwrap();
-            dispatch(showSuccessToast({ message: result.message }));
-          } catch (e) {}
-          setActiveOptionsResource(null);
-        }}
-        onEdit={() => {
-          setEditingResource(activeOptionsResource);
-          setActiveOptionsResource(null);
-        }}
-        onDelete={() => {
-          setResourceToDelete(activeOptionsResource);
-          setActiveOptionsResource(null);
-        }}
-        onReport={() => {
-          setReportingResource(activeOptionsResource);
-          setActiveOptionsResource(null);
-        }}
-      />
-
+      <ResourceOptionsModal visible={!!activeOptionsResource} resource={activeOptionsResource} onClose={() => setActiveOptionsResource(null)} isMyResource={activeOptionsResource?.uploadedBy?._id === currentUserId} isSaving={isTogglingFavorite} onShare={() => handleShare(activeOptionsResource)} onSave={async () => { try { const result = await toggleFavorite(activeOptionsResource._id).unwrap(); dispatch(showSuccessToast({ message: result.message })); } catch (e) {} setActiveOptionsResource(null); }} onEdit={() => { setEditingResource(activeOptionsResource); setActiveOptionsResource(null); }} onDelete={() => { setResourceToDelete(activeOptionsResource); setActiveOptionsResource(null); }} onReport={() => { setReportingResource(activeOptionsResource); setActiveOptionsResource(null); }} />
       <EditResourceModal visible={!!editingResource} resource={editingResource} onClose={() => setEditingResource(null)} />
       <ReportResourceModal visible={!!reportingResource} resource={reportingResource} onClose={() => setReportingResource(null)} />
       <DocumentViewerModal visible={!!activeDocument} onClose={() => setActiveDocument(null)} resource={activeDocument} token={token} />
-      
-      <DeleteResourceModal 
-        visible={!!resourceToDelete} 
-        onClose={() => setResourceToDelete(null)} 
-        onConfirm={handleConfirmDelete} 
-        resourceTitle={resourceToDelete?.title} 
-        isLoading={isDeleting} 
-      />
+      <DeleteResourceModal visible={!!resourceToDelete} onClose={() => setResourceToDelete(null)} onConfirm={handleConfirmDelete} resourceTitle={resourceToDelete?.title} isLoading={isDeleting} />
     </View> 
   );
 }

@@ -1,6 +1,6 @@
-//src/components/ui/SmartRefreshOverlay.jsx
+// src/components/ui/SmartRefreshOverlay.jsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Text, StyleSheet, Animated } from 'react-native';
 import { useAppTheme } from '../../theme/theme';
 
 export default function SmartRefreshOverlay({ isVisible }) {
@@ -32,9 +32,6 @@ export default function SmartRefreshOverlay({ isVisible }) {
     return () => clearInterval(interval);
   }, [isVisible, fadeAnim]);
 
-  // CORRECTION : Au lieu de ne rien rendre brutalement (return null), 
-  // on utilise un opacite 0 et pointerEvents="none". 
-  // C'est beaucoup plus robuste et evite les bugs visuels.
   return (
     <Animated.View 
       style={[

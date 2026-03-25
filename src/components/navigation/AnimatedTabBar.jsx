@@ -1,12 +1,15 @@
+// src/components/navigation/AnimatedTabBar.jsx
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, DeviceEventEmitter } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HardDrive, FolderOpen, Target, MessageSquare, FileText, Plus } from 'lucide-react-native';
+import { HardDrive, FolderOpen, Target, MessageSquare, FileText, Plus, ArrowUp } from 'lucide-react-native';
+import { useSelector, useDispatch } from 'react-redux';
 import { useAppTheme } from '../../theme/theme';
 import HelpModal from './HelpModal';
+import { triggerScrollToTop } from '../../store/slices/uiSlice';
 
-const TabItem = ({ isFocused, route, onPress, onLongPressTrigger, theme }) => {
+const TabItem = ({ isFocused, isScrolled, route, onPress, onLongPressTrigger, theme }) => {
   const scale = useSharedValue(isFocused ? 1 : 0);
   const timerRef = useRef(null);
 
@@ -28,19 +31,38 @@ const TabItem = ({ isFocused, route, onPress, onLongPressTrigger, theme }) => {
 
   const color = isFocused ? theme.colors.primary : theme.colors.textDisabled;
 
-  const renderIcon = () => {
+  const getBaseIcon = () => {
     switch (route.name) {
       case 'Ressources': return isFocused ? <FolderOpen color={color} size={24} fill={color} /> : <HardDrive color={color} size={24} />;
       case 'PourToi': return <Target color={color} size={24} />;
       case 'Messages': return <MessageSquare color={color} size={24} />;
-      case 'MyWord': return <FileText color={color} size={24} />;
+      case ' MyWord': return <FileText color={color} size={24} />;
       default: return null;
     }
   };
 
+  const renderIconWithScrollIndicator = () => {
+    const BaseIcon = getBaseIcon();
+
+    if (isFocused && isScrolled) {
+      return (
+        <View style={styles.iconWrapper}>
+          {BaseIcon}
+          <View style={[styles.scrollIndicatorBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}>
+            <ArrowUp color={theme.colors.surface} size={10} strokeWidth={3} />
+          </View>
+        </View>
+      );
+    }
+
+    return BaseIcon;
+  };
+
   return (
     <Pressable onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut} style={styles.tabItem}>
-      <Animated.View style={[styles.iconContainer, animatedIconStyle]}>{renderIcon()}</Animated.View>
+      <Animated.View style={[styles.iconContainer, animatedIconStyle]}>
+        {renderIconWithScrollIndicator()}
+      </Animated.View>
       <Text style={[styles.tabLabel, { color: color, opacity: isFocused ? 1 : 0.7 }]}>
         {route.name === 'PourToi' ? 'Pour Toi' : route.name}
       </Text>
@@ -52,6 +74,9 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   
+  const dispatch = useDispatch();
+  const scrollState = useSelector((globalState) => globalState.ui.scrollState);
+  
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [activeHelpRoute, setActiveHelpRoute] = useState(null);
 
@@ -62,6 +87,7 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
       <View style={[styles.tabBarContainer, { paddingBottom: insets.bottom || 15, backgroundColor: theme.colors.glassBackground, borderTopColor: theme.colors.glassBorder, borderTopWidth: 1 }]}>
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
+          const isScrolled = scrollState[route.name]?.isScrolled || false;
 
           if (route.name === 'Action') {
             return (
@@ -79,13 +105,13 @@ export default function AnimatedTabBar({ state, descriptors, navigation }) {
 
           const onPress = () => {
             if (isFocused) {
-              DeviceEventEmitter.emit('SMART_TAB_PRESS', { routeName: route.name });
+              dispatch(triggerScrollToTop({ screenName: route.name }));
             } else {
               navigation.navigate(route.name);
             }
           };
 
-          return <TabItem key={route.key} isFocused={isFocused} route={route} onPress={onPress} onLongPressTrigger={(name) => { setActiveHelpRoute(name); setHelpModalVisible(true); }} theme={theme} />;
+          return <TabItem key={route.key} isFocused={isFocused} isScrolled={isScrolled} route={route} onPress={onPress} onLongPressTrigger={(name) => { setActiveHelpRoute(name); setHelpModalVisible(true); }} theme={theme} />;
         })}
       </View>
       <HelpModal visible={helpModalVisible} onClose={() => setHelpModalVisible(false)} routeName={activeHelpRoute} />
@@ -98,5 +124,25 @@ const styles = StyleSheet.create({
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 5 },
   iconContainer: { alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   tabLabel: { fontSize: 10, fontWeight: '600' },
-  centralButtonContainer: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', transform: [{ translateY: -25 }], elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 6, borderWidth: 4 }
+  centralButtonContainer: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', transform: [{ translateY: -25 }], elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 6, borderWidth: 4 },
+  
+  // Nouveaux styles pour l'indicateur de scroll
+  iconWrapper: {
+    position: 'relative',
+    width: 24, // Taille standard de tes icones Lucide
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollIndicatorBadge: {
+    position: 'absolute',
+    top: -4, // Legerement en dehors en haut a droite
+    right: -4,
+    width: 14, // Petite pastille
+    height: 14,
+    borderRadius: 7,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5, // Contour pour se detacher de l'icone principale
+  }
 });

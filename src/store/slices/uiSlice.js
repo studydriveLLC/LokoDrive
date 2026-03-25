@@ -1,3 +1,4 @@
+// src/store/slices/uiSlice.js
 import { createSlice } from '@reduxjs/toolkit';
 
 const uiSlice = createSlice({
@@ -10,7 +11,8 @@ const uiSlice = createSlice({
     successToast: {
       isVisible: false,
       message: '',
-    }
+    },
+    scrollState: {} 
   },
   reducers: {
     showErrorToast: (state, action) => {
@@ -28,9 +30,31 @@ const uiSlice = createSlice({
     hideSuccessToast: (state) => {
       state.successToast.isVisible = false;
       state.successToast.message = '';
+    },
+    setScreenScrolled: (state, action) => {
+      const { screenName, isScrolled } = action.payload;
+      if (!state.scrollState[screenName]) {
+        state.scrollState[screenName] = { isScrolled: false, trigger: 0 };
+      }
+      state.scrollState[screenName].isScrolled = isScrolled;
+    },
+    triggerScrollToTop: (state, action) => {
+      const { screenName } = action.payload;
+      if (!state.scrollState[screenName]) {
+        state.scrollState[screenName] = { isScrolled: false, trigger: 0 };
+      }
+      state.scrollState[screenName].trigger += 1; 
     }
   }
 });
 
-export const { showErrorToast, hideErrorToast, showSuccessToast, hideSuccessToast } = uiSlice.actions;
+export const { 
+  showErrorToast, 
+  hideErrorToast, 
+  showSuccessToast, 
+  hideSuccessToast,
+  setScreenScrolled,
+  triggerScrollToTop
+} = uiSlice.actions;
+
 export default uiSlice.reducer;
