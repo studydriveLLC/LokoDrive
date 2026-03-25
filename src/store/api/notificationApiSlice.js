@@ -4,7 +4,7 @@ import { apiSlice } from '../slices/apiSlice';
 export const notificationApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getNotifications: builder.query({
-      query: ({ page = 1, limit = 20 } = {}) => ({
+      query: ({ page = 1, limit = 50 } = {}) => ({
         url: `/v1/notifications?page=${page}&limit=${limit}`,
       }),
       providesTags: (result) =>
@@ -28,7 +28,7 @@ export const notificationApiSlice = apiSlice.injectEndpoints({
       }),
       async onQueryStarted(id, { dispatch, queryFulfilled }) {
         const patchResult = dispatch(
-          notificationApiSlice.util.updateQueryData('getNotifications', { page: 1, limit: 20 }, (draft) => {
+          notificationApiSlice.util.updateQueryData('getNotifications', { page: 1, limit: 50 }, (draft) => {
             const notif = draft?.data?.notifications?.find(n => String(n._id) === String(id));
             if (notif) notif.isRead = true;
           })
@@ -47,7 +47,88 @@ export const notificationApiSlice = apiSlice.injectEndpoints({
         url: '/v1/notifications/read-all',
         method: 'PATCH',
       }),
-      invalidatesTags: ['Notification', 'NotificationCount'],
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        const patchResult = dispatch(
+          notificationApiSlice.util.updateQueryData('getNotifications', { page: 1, limit: 50 }, (draft) => {
+            if (draft?.data?.notifications) {
+              draft.data.notifications.forEach(n => { n.isRead = true; });
+            }
+          })
+        );
+        try {
+          await queryFulfilled;
+          dispatch(notificationApiSlice.util.invalidateTags(['NotificationCount']));
+        } catch {
+          patchResult.undo();
+        }
+      }
+    }),
+
+    deleteNotification: builder.mutation({
+      query: (id) => ({
+        url: `/v1/notifications/${id}`,
+        method: 'DELETE',
+      }),
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        const patchResult = dispatch(
+          notificationApiSlice.util.updateQueryData('getNotifications', { page: 1, limit: 50 }, (draft) => {
+            if (draft?.data?.notifications) {
+              draft.data.notifications = draft.data.notifications.filter(n => String(n._id) !== String(id));
+            }
+          })
+        );
+        try {
+          await queryFulfilled;
+          dispatch(notificationApiSlice.util.invalidateTags(['NotificationCount']));
+        } catch {
+          patchResult.undo();
+        }
+      }
+    }),
+
+    deleteMultipleNotifications: builder.mutation({
+      query: (notificationIds) => ({
+        url: '/v1/notifications/bulk-delete',
+        method: 'POST',
+        body: { notificationIds },
+      }),
+      async onQueryStarted(notificationIds, { dispatch, queryFulfilled }) {
+        const patchResult = dispatch(
+          notificationApiSlice.util.updateQueryData('getNotifications', { page: 1, limit: 50 }, (draft) => {
+            if (draft?.data?.notifications) {
+              draft.data.notifications = draft.data.notifications.filter(n => !notificationIds.includes(n._id));
+            }
+          })
+        );
+        try {
+          await queryFulfilled;
+          dispatch(notificationApiSlice.util.invalidateTags(['NotificationCount']));
+        } catch {
+          patchResult.undo();
+        }
+      }
+    }),
+
+    deleteAllNotifications: builder.mutation({
+      query: () => ({
+        url: '/v1/notifications/all',
+        method: 'DELETE',
+      }),
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        const patchResult = dispatch(
+          notificationApiSlice.util.updateQueryData('getNotifications', { page: 1, limit: 50 }, (draft) => {
+            if (draft?.data?.notifications) {
+              draft.data.notifications = [];
+            }
+          })
+        );
+        try {
+          await queryFulfilled;
+          dispatch(notificationApiSlice.util.invalidateTags(['NotificationCount']));
+        } catch {
+          patchResult.undo();
+        }
+      }
     }),
 
     registerPushToken: builder.mutation({
@@ -74,6 +155,9 @@ export const {
   useGetUnreadCountQuery,
   useMarkAsReadMutation,
   useMarkAllAsReadMutation,
+  useDeleteNotificationMutation,
+  useDeleteMultipleNotificationsMutation,
+  useDeleteAllNotificationsMutation,
   useRegisterPushTokenMutation,
   useUnregisterPushTokenMutation,
 } = notificationApiSlice;

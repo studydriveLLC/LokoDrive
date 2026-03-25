@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import MenuItem from '../../components/profile/MenuItem';
 import EditProfileModal from '../../components/profile/EditProfileModal';
 import LogoutModal from '../../components/profile/LogoutModal';
+import RoleBadge from '../../components/ui/RoleBadge';
 import { useAppTheme } from '../../theme/theme';
 
 import { useUpdateProfileMutation, useLogoutMutation } from '../../store/api/authApiSlice';
@@ -95,9 +96,16 @@ export default function MenuScreen({ navigation }) {
               )}
             </View>
             <View style={styles.profileTextContainer}>
-              <Text style={[styles.pseudo, { color: theme.colors.text }]}>
-                {user?.pseudo || 'Utilisateur'}
-              </Text>
+              <View style={styles.pseudoRow}>
+                <Text style={[styles.pseudo, { color: theme.colors.text }]} numberOfLines={1}>
+                  {user?.pseudo || 'Utilisateur'}
+                </Text>
+                {(user?.isVerified || user?.role || user?.badge) && (
+                  <View style={styles.badgeContainer}>
+                    <RoleBadge isVerified={user.isVerified} role={user.role} badgeType={user.badge} size={16} />
+                  </View>
+                )}
+              </View>
               <Text style={[styles.email, { color: theme.colors.textMuted }]}>
                 {user?.email || 'Email non renseigne'}
               </Text>
@@ -136,7 +144,7 @@ export default function MenuScreen({ navigation }) {
         <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Preferences</Text>
         <View style={[styles.menuBlock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <MenuItem icon={<Settings color={theme.colors.primaryDark} size={20} />} label="Parametres du compte" onPress={() => console.log("Parametres")} />
-          <MenuItem icon={<Bell color={theme.colors.primaryDark} size={20} />} label="Notifications" onPress={() => console.log("Notifications")} />
+          <MenuItem icon={<Bell color={theme.colors.primaryDark} size={20} />} label="Notifications" onPress={() => navigation.navigate('Notifications')} />
           <MenuItem icon={<UserCheck color={theme.colors.primaryDark} size={20} />} label="Confidentialite" onPress={() => console.log("Confidentialite")} />
         </View>
 
@@ -183,7 +191,9 @@ const styles = StyleSheet.create({
   profileInfoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   avatarPlaceholder: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   profileTextContainer: { flex: 1 },
-  pseudo: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
+  pseudoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  pseudo: { fontSize: 20, fontWeight: '800', flexShrink: 1 },
+  badgeContainer: { marginLeft: 6 },
   email: { fontSize: 14, fontWeight: '500' },
   statsContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', marginBottom: 20, paddingVertical: 10 },
   statItem: { alignItems: 'center', flex: 1 },

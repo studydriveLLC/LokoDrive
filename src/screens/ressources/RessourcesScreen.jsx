@@ -1,4 +1,4 @@
-// src/screens/ressources/RessourcesScreen.jsx
+//src/screens/ressources/RessourcesScreen.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, DeviceEventEmitter, RefreshControl, AppState, Share } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue, runOnJS } from 'react-native-reanimated';
@@ -42,7 +42,6 @@ export default function RessourcesScreen({ navigation }) {
   const queryArgsRef = useRef(queryArgs);
   const prevTrigger = useRef(scrollTrigger);
   
-  // CORRECTION : Memoire UI rapide
   const isScrolledUI = useSharedValue(false);
 
   const [activeOptionsResource, setActiveOptionsResource] = useState(null);
@@ -110,7 +109,6 @@ export default function RessourcesScreen({ navigation }) {
       
       const currentlyScrolled = event.contentOffset.y > 200;
       
-      // Envoi du message a Redux uniquement si changement
       if (isScrolledUI.value !== currentlyScrolled) {
         isScrolledUI.value = currentlyScrolled;
         runOnJS(updateScrollState)(currentlyScrolled);
@@ -119,28 +117,40 @@ export default function RessourcesScreen({ navigation }) {
   });
 
   useEffect(() => {
+    let scrollTimeout;
+    let refreshTimeout;
+
     if (scrollTrigger > prevTrigger.current) {
       prevTrigger.current = scrollTrigger;
       setIsSmartRefreshing(true); 
 
-      setTimeout(() => {
+      scrollTimeout = setTimeout(() => {
         try {
-          if (listRef.current?.scrollToOffset) {
-            listRef.current.scrollToOffset({ offset: 0, animated: true });
-          } else if (listRef.current?.getNode?.()?.scrollToOffset) {
-            listRef.current.getNode().scrollToOffset({ offset: 0, animated: true });
+          const listNode = listRef.current;
+          if (!listNode) return;
+
+          if (typeof listNode.scrollToOffset === 'function') {
+            listNode.scrollToOffset({ offset: 0, animated: true });
+          } else if (typeof listNode.getNode === 'function' && typeof listNode.getNode().scrollToOffset === 'function') {
+            listNode.getNode().scrollToOffset({ offset: 0, animated: true });
           }
         } catch (error) {
-          console.log("Erreur de scroll silencieuse:", error);
+          console.log("Erreur de scroll silencieuse:", error.message);
         }
       }, 150);
       
-      setTimeout(() => {
+      refreshTimeout = setTimeout(() => {
         setIsSmartRefreshing(false); 
         isScrolledUI.value = false;
         updateScrollState(false);
       }, 800);
     }
+
+    // Nettoyage des timers en cas de demontage ou de Fast Refresh Expo
+    return () => {
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+    };
   }, [scrollTrigger, updateScrollState, isScrolledUI]);
 
   const handleConfirmDelete = async () => {
@@ -186,6 +196,7 @@ export default function RessourcesScreen({ navigation }) {
 
       {isLoading && resources.length === 0 ? (
         <Animated.FlatList
+          ref={(node) => { listRef.current = node; }}
           data={[1, 2, 3]}
           keyExtractor={(item) => item.toString()}
           contentContainerStyle={{ paddingTop: 140 + insets.top, paddingBottom: 100 }}
@@ -195,7 +206,7 @@ export default function RessourcesScreen({ navigation }) {
         />
       ) : (
         <Animated.FlatList
-          ref={listRef}
+          ref={(node) => { listRef.current = node; }}
           data={resources}
           keyExtractor={(item) => item._id}
           onScroll={scrollHandler}

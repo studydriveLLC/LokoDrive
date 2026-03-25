@@ -3,6 +3,9 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { saveToken, deleteToken, getToken } from '../secureStoreAdapter';
 
+const rawBaseUrl = process.env.EXPO_PUBLIC_API_URL || '';
+const API_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+
 const initialState = {
   user: null,
   token: null,
@@ -15,13 +18,13 @@ const initialState = {
 
 const safeStorageSet = (key, value) => {
   Promise.resolve(saveToken(key, value)).catch(err => {
-    console.error(`[Redux] Echec de sauvegarde pour ${key}:`, err);
+    console.warn(`[Redux] Echec de sauvegarde pour ${key}:`, err);
   });
 };
 
 const safeStorageRemove = (key) => {
   Promise.resolve(deleteToken(key)).catch(err => {
-    console.error(`[Redux] Echec de suppression pour ${key}:`, err);
+    console.warn(`[Redux] Echec de suppression pour ${key}:`, err);
   });
 };
 
@@ -125,11 +128,11 @@ export const forceSilentRefresh = () => async (dispatch, getState) => {
       return;
     }
 
-    const API_URL = process.env.EXPO_PUBLIC_API_URL || '';
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    // Augmentation du timeout à 60s pour anticiper le cold start de Render
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-    const response = await fetch(`${API_URL}/v1/auth/refresh`, {
+    const response = await fetch(`${API_URL}/api/v1/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({ refreshToken: currentRefreshToken }),
@@ -164,7 +167,7 @@ export const forceSilentRefresh = () => async (dispatch, getState) => {
       }
     }
   } catch (error) {
-    console.error("[AUTH] Echec reseau du rafraichissement silencieux. Session conservee:", error);
+    console.warn("[AUTH] Echec reseau du rafraichissement silencieux. Session conservee:", error.message);
   } finally {
     dispatch(setTokenRefreshing(false));
   }

@@ -1,4 +1,4 @@
-// src/components/navigation/AnimatedHeader.jsx
+//src/components/navigation/AnimatedHeader.jsx
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TextInput, Pressable, DeviceEventEmitter, Text, Keyboard } from 'react-native';
 import Animated, { 
@@ -8,7 +8,12 @@ import Animated, {
   FadeInLeft, 
   FadeOutRight, 
   FadeInRight, 
-  FadeOutLeft 
+  FadeOutLeft,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -30,31 +35,46 @@ export default function AnimatedHeader({ scrollY }) {
   const [isCompactSearchActive, setIsCompactSearchActive] = useState(false);
 
   const animations = useHeaderAnimations(scrollY, insets);
+  const blinkOpacity = useSharedValue(1);
 
   const { data: unreadData, refetch: refetchUnread } = useGetUnreadCountQuery(undefined, {
     refetchOnMountOrArgChange: true,
   });
   const unreadCount = unreadData?.data?.count || 0;
 
-  // Correction de l'erreur : Ecouteur de scroll version UI Runtime
+  useEffect(() => {
+    if (unreadCount > 0) {
+      blinkOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.2, { duration: 800 }),
+          withTiming(1, { duration: 800 })
+        ),
+        -1,
+        true
+      );
+    } else {
+      blinkOpacity.value = 1;
+    }
+  }, [unreadCount, blinkOpacity]);
+
+  const animatedBadgeStyle = useAnimatedStyle(() => ({
+    opacity: blinkOpacity.value,
+  }));
+
   useAnimatedReaction(
     () => scrollY.value,
     (currentValue) => {
-      // Si on remonte au-dessus de la moitié de la distance, on ferme le mode compact
       if (currentValue < SCROLL_DISTANCE / 2 && isCompactSearchActive) {
         runOnJS(setIsCompactSearchActive)(false);
       }
     },
-    [isCompactSearchActive] // On garde l'état en dépendance pour la réaction
+    [isCompactSearchActive]
   );
 
   const animatedSearchProps = useAnimatedProps(() => {
-    return {
-      pointerEvents: scrollY.value > SCROLL_DISTANCE / 2 ? 'none' : 'auto',
-    };
+    return { pointerEvents: scrollY.value > SCROLL_DISTANCE / 2 ? 'none' : 'auto' };
   });
 
-  // Focus automatique quand on ouvre la recherche compacte
   useEffect(() => {
     if (isCompactSearchActive) {
       const timer = setTimeout(() => compactInputRef.current?.focus(), 100);
@@ -65,9 +85,7 @@ export default function AnimatedHeader({ scrollY }) {
   useFocusEffect(
     useCallback(() => {
       DeviceEventEmitter.emit('UPDATE_TOP_INSET_COLOR', theme.colors.primary);
-      return () => {
-        DeviceEventEmitter.emit('UPDATE_TOP_INSET_COLOR', theme.colors.background);
-      };
+      return () => { DeviceEventEmitter.emit('UPDATE_TOP_INSET_COLOR', theme.colors.background); };
     }, [theme])
   );
 
@@ -81,9 +99,7 @@ export default function AnimatedHeader({ scrollY }) {
 
   const clearSearch = () => {
     setSearchValue('');
-    if (!isCompactSearchActive) {
-      Keyboard.dismiss();
-    }
+    if (!isCompactSearchActive) Keyboard.dismiss();
     DeviceEventEmitter.emit('EXECUTE_SEARCH', { query: '' });
   };
 
@@ -94,10 +110,7 @@ export default function AnimatedHeader({ scrollY }) {
 
   return (
     <Animated.View style={[styles.container, { backgroundColor: theme.colors.primary }, animations.headerHeight, theme.shadows.medium]}>
-      
-      {/* TOP ROW : Logo / Actions ou Barre Compacte */}
       <View style={[styles.topRow, { height: 60, zIndex: 10 }]}>
-        
         {!isCompactSearchActive ? (
           <>
             <Animated.View entering={FadeInLeft} exiting={FadeOutLeft} style={styles.leftSection}>
@@ -106,18 +119,16 @@ export default function AnimatedHeader({ scrollY }) {
 
             <Animated.View entering={FadeInRight} exiting={FadeOutRight} style={styles.rightSection}>
               <Animated.View style={[animations.miniSearchOpacity, animations.miniSearchTranslateX]}>
-                <Pressable 
-                  onPress={() => setIsCompactSearchActive(true)} 
-                  hitSlop={15} 
-                  style={styles.iconButton}
-                >
+                <Pressable onPress={() => setIsCompactSearchActive(true)} hitSlop={15} style={styles.iconButton}>
                   <Search color={theme.colors.surface} size={24} />
                 </Pressable>
               </Animated.View>
 
               <Pressable onPress={() => navigation.navigate('Notifications')} hitSlop={10} style={styles.iconButton}>
                 <Bell color={theme.colors.surface} size={24} />
-                {unreadCount > 0 && <View style={[styles.badge, { backgroundColor: theme.colors.error, borderColor: theme.colors.primary }]} />}
+                {unreadCount > 0 && (
+                  <Animated.View style={[styles.badge, { backgroundColor: theme.colors.error, borderColor: theme.colors.primary }, animatedBadgeStyle]} />
+                )}
               </Pressable>
 
               <Pressable onPress={() => navigation.navigate('Menu')} hitSlop={10} style={styles.iconButton}>
@@ -132,17 +143,7 @@ export default function AnimatedHeader({ scrollY }) {
             </Pressable>
             
             <View style={[styles.searchBarCompact, { backgroundColor: theme.colors.surface }]}>
-              <TextInput
-                ref={compactInputRef}
-                value={searchValue}
-                onChangeText={setSearchValue}
-                onSubmitEditing={handleSearchSubmit}
-                placeholder="Rechercher..."
-                placeholderTextColor={theme.colors.textDisabled}
-                returnKeyType="search"
-                style={[styles.searchInput, { color: theme.colors.text }]}
-                selectionColor={theme.colors.primary}
-              />
+              <TextInput ref={compactInputRef} value={searchValue} onChangeText={setSearchValue} onSubmitEditing={handleSearchSubmit} placeholder="Rechercher..." placeholderTextColor={theme.colors.textDisabled} returnKeyType="search" style={[styles.searchInput, { color: theme.colors.text }]} selectionColor={theme.colors.primary} />
               {searchValue.length > 0 && (
                 <Pressable onPress={clearSearch} hitSlop={10} style={{ padding: 5 }}>
                   <X color={theme.colors.textMuted} size={18} />
@@ -153,27 +154,11 @@ export default function AnimatedHeader({ scrollY }) {
         )}
       </View>
 
-      {/* BOTTOM ROW : Grande Barre */}
-      <Animated.View 
-        animatedProps={animatedSearchProps}
-        style={[styles.bottomRow, animations.largeSearchOpacity, animations.largeSearchTranslateY, { zIndex: 1 }]}
-      >
+      <Animated.View animatedProps={animatedSearchProps} style={[styles.bottomRow, animations.largeSearchOpacity, animations.largeSearchTranslateY, { zIndex: 1 }]}>
         <View style={[styles.searchBar, { backgroundColor: theme.colors.surface }]}>
           <Search color={theme.colors.textMuted} size={20} style={styles.searchIcon} />
-          
           <AnimatedSearchPlaceholder isHidden={isFocused || searchValue.length > 0} />
-
-          <TextInput
-            value={searchValue}
-            onChangeText={setSearchValue}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            onSubmitEditing={handleSearchSubmit}
-            returnKeyType="search"
-            style={[styles.searchInput, { color: theme.colors.text }]}
-            selectionColor={theme.colors.primary}
-          />
-
+          <TextInput value={searchValue} onChangeText={setSearchValue} onFocus={() => setIsFocused(true)} onBlur={() => setIsFocused(false)} onSubmitEditing={handleSearchSubmit} returnKeyType="search" style={[styles.searchInput, { color: theme.colors.text }]} selectionColor={theme.colors.primary} />
           {searchValue.length > 0 && (
             <Pressable onPress={clearSearch} style={styles.clearButton} hitSlop={10}>
               <X color={theme.colors.textMuted} size={18} />
@@ -181,7 +166,6 @@ export default function AnimatedHeader({ scrollY }) {
           )}
         </View>
       </Animated.View>
-      
     </Animated.View>
   );
 }

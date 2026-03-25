@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { getToken } from '../store/secureStoreAdapter';
 
 import { restoreAuth, forceSilentRefresh, setAuthLoading } from '../store/slices/authSlice';
+import { apiSlice } from '../store/slices/apiSlice';
 import { useAppTheme } from '../theme/theme';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
@@ -54,8 +55,6 @@ export default function AppNavigator() {
   const theme = useAppTheme();
   const { isAuthenticated, isLoading } = useSelector((state) => state.auth);
 
-  // Initialisation du service de notifications Push
-  // Le hook gère lui-même sa sécurité et ne s'exécutera que si un utilisateur est authentifié.
   usePushNotifications();
 
   useEffect(() => {
@@ -95,6 +94,24 @@ export default function AppNavigator() {
     
     bootSequence();
   }, [dispatch]);
+
+  // Écouteur global pour le temps reel (In-App Notifications)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleNewNotification = () => {
+      // Invalide le cache de RTK Query : force le rafraichissement silencieux
+      // du compteur (badge) et de la liste (si l'ecran est ouvert)
+      dispatch(apiSlice.util.invalidateTags(['Notification', 'NotificationCount']));
+    };
+
+    // On utilise la methode .on() robuste de ta classe SocketService
+    socketService.on('new_notification', handleNewNotification);
+
+    return () => {
+      socketService.off('new_notification', handleNewNotification);
+    };
+  }, [isAuthenticated, dispatch]);
 
   if (isLoading) {
     return (
