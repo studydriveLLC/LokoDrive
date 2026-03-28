@@ -1,9 +1,10 @@
+// src/components/feed/PostHeader.jsx
 import React from 'react';
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
 import { MoreHorizontal } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/theme';
 
-export default function PostHeader({ author, date, description, onReadMore, onOptionsPress }) {
+export default function PostHeader({ author, date, description, hideDescription, onReadMore, onOptionsPress }) {
   const theme = useAppTheme();
 
   return (
@@ -11,20 +12,20 @@ export default function PostHeader({ author, date, description, onReadMore, onOp
       
       <View style={styles.topRow}>
         <View style={styles.userInfo}>
-          {author.avatar ? (
+          {author?.avatar ? (
             <Image source={{ uri: author.avatar }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.primaryLight }]}>
               <Text style={{ color: theme.colors.surface, fontWeight: '700' }}>
-                {author.pseudo.substring(0, 1).toUpperCase()}
+                {author?.pseudo ? author.pseudo.substring(0, 1).toUpperCase() : 'U'}
               </Text>
             </View>
           )}
           
           <View style={styles.metaData}>
             <Text style={[styles.pseudo, { color: theme.colors.text }]}>
-              {author.pseudo}
-              {author.hasBadge && (
+              {author?.pseudo || 'Utilisateur'}
+              {author?.hasBadge && (
                 <Text style={{ color: theme.colors.primary }}> •</Text> 
               )}
             </Text>
@@ -32,12 +33,13 @@ export default function PostHeader({ author, date, description, onReadMore, onOp
           </View>
         </View>
 
-        <Pressable style={styles.optionsButton} onPress={onOptionsPress}>
+        <Pressable style={styles.optionsButton} onPress={onOptionsPress} hitSlop={10}>
           <MoreHorizontal color={theme.colors.textMuted} size={20} />
         </Pressable>
       </View>
 
-      {description && description.length > 0 && (
+      {/* On masque la description classique si c'est un post avec fond coloré */}
+      {!hideDescription && description && description.length > 0 && (
         <Pressable onPress={onReadMore}>
           <Text 
             style={[styles.description, { color: theme.colors.text }]} 

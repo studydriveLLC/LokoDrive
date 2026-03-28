@@ -1,4 +1,3 @@
-// src/screens/home/FeedScreen.jsx
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, Text, RefreshControl } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue, runOnJS } from 'react-native-reanimated';
@@ -12,10 +11,21 @@ import CommentsModal from '../../components/feed/CommentsModal';
 import PostDescriptionModal from '../../components/feed/PostDescriptionModal';
 import ShareModal from '../../components/feed/ShareModal';
 import PostOptionsModal from '../../components/feed/PostOptionsModal';
+import ReportPostModal from '../../components/feed/ReportPostModal';
 import SmartRefreshOverlay from '../../components/ui/SmartRefreshOverlay';
-import { useGetFeedQuery, useToggleLikeMutation } from '../../store/api/postApiSlice';
+
+import { 
+  useGetFeedQuery, 
+  useToggleLikeMutation, 
+  useDeletePostMutation, 
+  useCreateRepostMutation 
+} from '../../store/api/postApiSlice';
+import { useHideUserMutation } from '../../store/api/socialApiSlice';
 import { useAppTheme } from '../../theme/theme';
 import { setScreenScrolled } from '../../store/slices/uiSlice';
+
+import usePostSocketEvents from '../../hooks/usePostSocketEvents';
+import socketService from '../../services/socketService';
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -35,14 +45,10 @@ const formatDate = (dateString) => {
 };
 
 const mapPostFromBackend = (post) => {
-  const media = (post.content?.mediaUrls || []).map((url) => ({
-    type: post.content?.mediaType || 'image',
-    url: url,
-  }));
-
   return {
     _id: post._id,
     author: {
+      _id: post.author?._id,
       pseudo: post.author?.pseudo || 'Utilisateur',
       avatar: post.author?.avatar || null,
       hasBadge: post.author?.badgeType !== 'none' && post.author?.badgeType !== undefined,
@@ -50,13 +56,12 @@ const mapPostFromBackend = (post) => {
       lastName: post.author?.lastName || '',
       university: post.author?.university || '',
     },
-    date: formatDate(post.createdAt),
-    description: post.content?.text || '',
-    likes: post.stats?.likes || 0,
-    commentsCount: post.stats?.comments || 0,
-    shares: post.stats?.shares || 0,
+    createdAt: formatDate(post.createdAt),
+    content: post.content, 
+    stats: post.stats || { likes: 0, comments: 0, shares: 0 },
     isLikedByMe: post.isLikedByMe || false,
-    media: media,
+    isRepost: post.isRepost || false,
+    originalPost: post.originalPost,
     comments: post.comments || [],
   };
 };
@@ -68,12 +73,12 @@ export default function FeedScreen({ navigation }) {
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
   
+  usePostSocketEvents();
+
   const scrollTrigger = useSelector((state) => state.ui.scrollState['PourToi']?.trigger || 0);
   
   const listRef = useRef(null);
   const prevTrigger = useRef(scrollTrigger);
-
-  // CORRECTION : On cree une memoire rapide pour le cerveau UI
   const isScrolledUI = useSharedValue(false);
 
   useScrollToTop(listRef);
@@ -82,12 +87,17 @@ export default function FeedScreen({ navigation }) {
   const [activeDescPost, setActiveDescPost] = useState(null);
   const [activeSharePost, setActiveSharePost] = useState(null);
   const [activeOptionsPost, setActiveOptionsPost] = useState(null);
+  const [activeReportPost, setActiveReportPost] = useState(null);
   
   const [refreshing, setRefreshing] = useState(false);
   const [isSmartRefreshing, setIsSmartRefreshing] = useState(false);
 
   const { data: posts = [], isLoading, isError, refetch } = useGetFeedQuery();
   const [toggleLike] = useToggleLikeMutation();
+  const [deletePost] = useDeletePostMutation();
+  const [createRepost] = useCreateRepostMutation();
+  const [hideUser] = useHideUserMutation();
+
   const transformedPosts = posts.map(mapPostFromBackend);
 
   const updateScrollState = useCallback((isScrolled) => {
@@ -97,11 +107,8 @@ export default function FeedScreen({ navigation }) {
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollY.value = event.contentOffset.y;
-      
-      // CORRECTION : On calcule si on depasse 200
       const currentlyScrolled = event.contentOffset.y > 200;
       
-      // On n'envoie le message a Redux QUE SI l'etat a change (1 seul message)
       if (isScrolledUI.value !== currentlyScrolled) {
         isScrolledUI.value = currentlyScrolled;
         runOnJS(updateScrollState)(currentlyScrolled);
@@ -134,7 +141,6 @@ export default function FeedScreen({ navigation }) {
       
       setTimeout(() => {
         setIsSmartRefreshing(false);
-        // On remet a zero la memoire UI et JS
         isScrolledUI.value = false;
         updateScrollState(false); 
       }, 800);
@@ -143,14 +149,36 @@ export default function FeedScreen({ navigation }) {
 
   const handleLike = async (postId) => {
     try {
-      await toggleLike(postId).unwrap();
-    } catch (error) {
-      console.log('Erreur like:', error);
-    }
+      const result = await toggleLike(postId).unwrap();
+      const socket = socketService.getSocket();
+      if (socket) {
+        socket.emit('post_action', { 
+          postId, 
+          action: 'like', 
+          data: { likesCount: result.likesCount } 
+        });
+      }
+    } catch (error) { console.log('Erreur like:', error); }
   };
 
   const handleDelete = async (postId) => {
-    console.log('Supprimer post:', postId);
+    try {
+      await deletePost(postId).unwrap();
+      setActiveOptionsPost(null);
+    } catch (error) { console.log('Erreur suppression:', error); }
+  };
+
+  const handleRepost = async (postId) => {
+    try {
+      await createRepost(postId).unwrap();
+    } catch (error) { console.log('Erreur repartage:', error); }
+  };
+
+  const handleHideUser = async (authorId) => {
+    if (!authorId) return;
+    try {
+      await hideUser(authorId).unwrap();
+    } catch (error) { console.log('Erreur masquage utilisateur:', error); }
   };
 
   const renderContent = () => {
@@ -203,7 +231,6 @@ export default function FeedScreen({ navigation }) {
             onOpenShare={() => setActiveSharePost(item)}
             onOpenOptions={() => setActiveOptionsPost(item)}
             onLike={() => handleLike(item._id)}
-            onDelete={() => handleDelete(item._id)}
           />
         )}
       />
@@ -216,10 +243,44 @@ export default function FeedScreen({ navigation }) {
       <SmartRefreshOverlay isVisible={isSmartRefreshing} />
       {renderContent()}
 
-      <CommentsModal visible={!!activeCommentPost} onClose={() => setActiveCommentPost(null)} post={activeCommentPost} />
-      <PostDescriptionModal visible={!!activeDescPost} onClose={() => setActiveDescPost(null)} author={activeDescPost?.author} date={activeDescPost?.date} description={activeDescPost?.description} />
-      <ShareModal visible={!!activeSharePost} onClose={() => setActiveSharePost(null)} postId={activeSharePost?._id} />
-      <PostOptionsModal visible={!!activeOptionsPost} onClose={() => setActiveOptionsPost(null)} isMyPost={activeOptionsPost?.author?.pseudo === user?.pseudo} onDelete={() => handleDelete(activeOptionsPost?._id)} />
+      <CommentsModal 
+        visible={!!activeCommentPost} 
+        onClose={() => setActiveCommentPost(null)} 
+        post={activeCommentPost} 
+      />
+      <PostDescriptionModal 
+        visible={!!activeDescPost} 
+        onClose={() => setActiveDescPost(null)} 
+        author={activeDescPost?.author} 
+        date={activeDescPost?.createdAt} 
+        description={activeDescPost?.content?.text} 
+      />
+      <ShareModal 
+        visible={!!activeSharePost} 
+        onClose={() => setActiveSharePost(null)} 
+        postId={activeSharePost?._id} 
+      />
+      <PostOptionsModal 
+        visible={!!activeOptionsPost} 
+        onClose={() => setActiveOptionsPost(null)} 
+        isMyPost={activeOptionsPost?.author?._id === user?._id} 
+        onDelete={() => handleDelete(activeOptionsPost?._id)}
+        onRepost={() => handleRepost(activeOptionsPost?._id)}
+        onHideUser={() => handleHideUser(activeOptionsPost?.author?._id)}
+        onShareExternal={() => console.log('Ouvrir les options natives de partage')}
+        onReport={() => {
+          const postToReport = activeOptionsPost;
+          setActiveOptionsPost(null);
+          setTimeout(() => setActiveReportPost(postToReport), 300);
+        }}
+        onEdit={() => console.log('Ouvrir modal de modification')}
+      />
+
+      <ReportPostModal 
+        visible={!!activeReportPost} 
+        onClose={() => setActiveReportPost(null)} 
+        post={activeReportPost} 
+      />
     </View>
   );
 }
@@ -228,7 +289,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 140, paddingHorizontal: 32 },
   errorText: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
-  retryText: { marginTop: 12, fontSize: 16, fontWeight: '500' },
+  retryText: { marginTop: 12, fontSize: 16, fontWeight: '500', padding: 10 },
   emptyText: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
   emptySubtext: { marginTop: 8, fontSize: 14, textAlign: 'center' },
 });

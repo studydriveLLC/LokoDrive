@@ -1,16 +1,30 @@
+// src/components/feed/PostOptionsModal.jsx
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Edit2, Trash2, Bookmark, UserMinus, AlertTriangle } from 'lucide-react-native';
+import { Edit2, Trash2, Repeat, Share2, EyeOff, AlertTriangle } from 'lucide-react-native';
 import BottomSheet from '../ui/BottomSheet';
 import { useAppTheme } from '../../theme/theme';
 
-export default function PostOptionsModal({ visible, onClose, isMyPost, onEdit, onDelete, onSave, onUnfollow, onReport }) {
+export default function PostOptionsModal({ 
+  visible, 
+  onClose, 
+  isMyPost, 
+  onEdit, 
+  onDelete, 
+  onShareExternal, 
+  onRepost, 
+  onHideUser, 
+  onReport 
+}) {
   const theme = useAppTheme();
 
   const renderOption = (icon, label, onPress, isDestructive = false) => (
     <Pressable 
       style={[styles.optionRow, { borderBottomColor: theme.colors.divider }]} 
-      onPress={onPress}
+      onPress={() => {
+        onPress();
+        onClose();
+      }}
     >
       <View style={[
         styles.iconBox, 
@@ -38,8 +52,9 @@ export default function PostOptionsModal({ visible, onClose, isMyPost, onEdit, o
           </>
         ) : (
           <>
-            {renderOption(<Bookmark color={theme.colors.primaryDark} size={20} />, "Sauvegarder", onSave)}
-            {renderOption(<UserMinus color={theme.colors.primaryDark} size={20} />, "Ne plus suivre l'auteur", onUnfollow)}
+            {renderOption(<Repeat color={theme.colors.primaryDark} size={20} />, "Repartager sur l'application", onRepost)}
+            {renderOption(<Share2 color={theme.colors.primaryDark} size={20} />, "Partager hors de l'application", onShareExternal)}
+            {renderOption(<EyeOff color={theme.colors.primaryDark} size={20} />, "Ne plus voir ce membre", onHideUser)}
             {renderOption(<AlertTriangle color={theme.colors.error} size={20} />, "Signaler la publication", onReport, true)}
           </>
         )}
